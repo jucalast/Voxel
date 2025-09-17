@@ -381,116 +381,6 @@
       gap: 12px;
     }
 
-    .slider-container {
-      position: relative;
-    }
-
-    .slider {
-      width: 100%;
-      height: 20px;
-      border-radius: 10px;
-      position: relative;
-      cursor: pointer;
-      border: 1px solid #3a3a3a;
-    }
-
-    #hue-slider {
-      background: linear-gradient(to right, 
-        #ff0000 0%, #ff8000 12.5%, #ffff00 25%, #80ff00 37.5%, 
-        #00ff00 50%, #00ff80 62.5%, #00ffff 75%, #0080ff 87.5%, 
-        #0000ff 100%);
-    }
-
-    #opacity-slider {
-      background: 
-        linear-gradient(to right, transparent 0%, #7c3aed 100%),
-        repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 
-        50% / 8px 8px;
-    }
-
-    .slider-handle {
-      position: absolute;
-      top: 50%;
-      width: 16px;
-      height: 16px;
-      border: 2px solid #ffffff;
-      border-radius: 50%;
-      background: #ffffff;
-      transform: translate(-50%, -50%);
-      cursor: pointer;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-      transition: transform 0.1s ease;
-    }
-
-    .slider-handle:hover {
-      transform: translate(-50%, -50%) scale(1.1);
-    }
-
-    #hue-handle {
-      left: 75%;
-    }
-
-    #opacity-handle {
-      left: 100%;
-    }
-
-    /* ===== PALETA RÁPIDA ===== */
-    #quick-colors {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    #colorPalette {
-      display: grid;
-      grid-template-columns: repeat(8, 1fr);
-      gap: 4px;
-    }
-
-    .color-btn {
-      width: 28px;
-      height: 28px;
-      border: 2px solid transparent;
-      border-radius: 6px;
-      cursor: pointer;
-      outline: none;
-      transition: all 0.15s ease;
-      position: relative;
-    }
-
-    .color-btn:hover {
-      transform: scale(1.1);
-      border-color: #666666;
-      z-index: 2;
-    }
-
-    .color-btn.selected {
-      border-color: #ffffff;
-      transform: scale(1.1);
-      z-index: 3;
-      box-shadow: 0 0 0 1px #7c3aed, 0 4px 8px rgba(124, 58, 237, 0.3);
-    }
-
-    /* Estilos específicos para botões de memória de cores */
-    .memory-color-btn {
-      border-radius: 3px !important;
-      border: 1px solid rgba(255, 255, 255, 0.1) !important;
-      transition: all 0.2s ease !important;
-    }
-
-    .memory-color-btn:hover {
-      transform: scale(1.05) !important;
-      border-color: rgba(255, 255, 255, 0.3) !important;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
-      z-index: 10 !important;
-    }
-
-    .memory-color-btn.selected {
-      border-color: #7c3aed !important;
-      box-shadow: 0 0 0 1px #7c3aed, 0 2px 6px rgba(124, 58, 237, 0.4) !important;
-      transform: scale(1.05) !important;
-    }
-
     /* ===== CONTAINER 3D ===== */
     #three-container {
       width: 100vw;
@@ -875,7 +765,7 @@
     /* ===== PAINEL DE AJUDA ===== */
     #help-panel {
       position: fixed;
-      top: 70px;
+      top: 80px;
       right: 20px;
       width: 320px;
       max-height: calc(100vh - 100px);
@@ -1336,6 +1226,799 @@
     }
 
     /* ===== ESTILOS DE IA REMOVIDOS ===== */
+
+    /* ===== ESTILOS DO MODO SALA AMBIENTE ===== */
+    #room-panel {
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      width: 320px;
+      max-height: calc(100vh - 100px);
+      background: rgba(26, 26, 26, 0.95);
+      border: 1px solid rgba(58, 58, 58, 0.5);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      animation: slideInRight 0.3s ease-out;
+    }
+
+    #room-panel.show {
+      display: flex;
+    }
+
+    /* Header do painel da sala */
+    .room-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(58, 58, 58, 0.5);
+      background: rgba(42, 42, 42, 0.8);
+      position: relative;
+    }
+
+    .room-header h3 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .room-header h3 svg {
+      color: #cccccc;
+      flex-shrink: 0;
+    }
+
+    .room-header .room-description {
+      font-size: 12px;
+      color: #cccccc;
+      margin: 4px 0 0 0;
+      line-height: 1.4;
+    }
+
+    /* Conteúdo do painel da sala */
+    .room-content {
+      padding: 16px 20px;
+      overflow-y: auto;
+      flex: 1;
+      background: rgba(26, 26, 26, 0.95);
+    }
+
+    .room-content::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .room-content::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .room-content::-webkit-scrollbar-thumb {
+      background: rgba(70, 70, 70, 0.8);
+      border-radius: 2px;
+    }
+
+    /* Seções do painel da sala */
+    .room-section {
+      margin-bottom: 16px;
+    }
+
+    .room-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .room-section h4 {
+      margin: 0 0 10px 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: #cccccc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .room-section h4 svg {
+      color: #ffffff;
+      flex-shrink: 0;
+    }
+
+    /* Botões modernos para o modo sala */
+    .room-btn {
+      padding: 10px 16px;
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 13px;
+      background: #2a2a2a;
+      color: #cccccc;
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+
+    .room-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      transition: left 0.5s ease;
+    }
+
+    .room-btn:hover {
+      background: #333333;
+      border-color: #4a4a4a;
+      color: #ffffff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    .room-btn:hover::before {
+      left: 100%;
+    }
+
+    .room-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+
+    .room-btn.danger {
+      background: linear-gradient(135deg, #2a2a2a, #333333);
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+
+    .room-btn.danger:hover {
+      background: #ef4444;
+      color: #ffffff;
+      border-color: #dc2626;
+    }
+
+    .room-btn.secondary {
+      background: linear-gradient(135deg, #2a2a2a, #333333);
+      border-color: #666666;
+      color: #cccccc;
+    }
+
+    .room-btn.secondary:hover {
+      background: #666666;
+      color: #ffffff;
+      border-color: #777777;
+    }
+
+    /* Input file customizado */
+    .room-file-input {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      background: #2a2a2a;
+      color: #cccccc;
+      font-size: 12px;
+      margin-bottom: 8px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .room-file-input:hover {
+      border-color: #4a4a4a;
+      background: #333333;
+    }
+
+    .room-file-input::file-selector-button {
+      background: #7c3aed;
+      color: #ffffff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-right: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .room-file-input::file-selector-button:hover {
+      background: #a855f7;
+      transform: scale(1.05);
+    }
+
+    /* Lista de objetos da sala */
+    .room-objects-list {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid rgba(58, 58, 58, 0.3);
+      border-radius: 8px;
+      background: rgba(42, 42, 42, 0.6);
+      padding: 8px;
+    }
+
+    .room-objects-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .room-objects-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .room-objects-list::-webkit-scrollbar-thumb {
+      background: rgba(70, 70, 70, 0.8);
+      border-radius: 2px;
+    }
+
+    .room-objects-list:empty::before {
+      content: "Nenhum objeto carregado";
+      display: block;
+      text-align: center;
+      color: #666666;
+      font-size: 12px;
+      padding: 20px;
+      font-style: italic;
+    }
+
+    /* ===== ESTILOS MELHORADOS PARA ITENS DE OBJETO (NOVO) ===== */
+    .room-object-card {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-lg);
+      margin-bottom: 12px;
+      transition: all var(--transition-normal);
+      overflow: hidden;
+      animation: fadeInUp 0.4s ease-out both;
+    }
+
+    .room-object-card:hover {
+      border-color: var(--border-secondary);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-primary);
+      cursor: pointer;
+    }
+
+    .card-header h5 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-header h5 svg {
+      color: var(--accent-cyan);
+      width: 16px;
+      height: 16px;
+    }
+
+    .card-toggle-icon {
+      transition: transform var(--transition-normal);
+      color: var(--text-muted);
+    }
+
+    .card-body {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card-body.collapsed {
+        display: none;
+    }
+
+    .transform-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .transform-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .transform-header svg {
+      width: 14px;
+      height: 14px;
+      color: var(--text-muted);
+    }
+
+    .transform-inputs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .input-group {
+      display: flex;
+      align-items: center;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-primary);
+      overflow: hidden;
+      transition: all var(--transition-fast);
+    }
+
+    .input-group:focus-within {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.1);
+    }
+
+    .input-group-label {
+      padding: 0 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-right: 1px solid var(--border-primary);
+      background: var(--bg-primary);
+    }
+
+    .transform-input-new {
+      width: 100%;
+      padding: 6px 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 12px;
+      text-align: center;
+      -moz-appearance: textfield; /* Firefox */
+    }
+
+    .transform-input-new::-webkit-outer-spin-button,
+    .transform-input-new::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .transform-input-new:focus {
+      outline: none;
+      background: var(--bg-active);
+    }
+
+    /* Estilos para sliders de transformação */
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-primary);
+    }
+
+    .transform-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--border-primary);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .transform-slider:hover {
+      background: var(--accent-primary);
+    }
+
+    .transform-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: var(--accent-primary);
+      cursor: pointer;
+      border-radius: 50%;
+      border: 2px solid var(--bg-tertiary);
+      box-shadow: 0 0 6px rgba(124, 58, 237, 0.4);
+      transition: all 0.2s ease;
+    }
+
+    .transform-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      box-shadow: 0 0 8px rgba(124, 58, 237, 0.6);
+    }
+
+    .transform-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      background: var(--accent-primary);
+      cursor: pointer;
+      border-radius: 50%;
+      border: 2px solid var(--bg-tertiary);
+      box-shadow: 0 0 6px rgba(124, 58, 237, 0.4);
+    }
+
+    .slider-value {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-primary);
+      min-width: 40px;
+      text-align: center;
+      background: var(--bg-primary);
+      padding: 3px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border-primary);
+      white-space: nowrap;
+    }
+
+    .scale-slider-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-primary);
+    }
+
+    .scale-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--border-primary);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .scale-slider:hover {
+      background: var(--accent-primary);
+    }
+
+    .scale-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: var(--accent-primary);
+      cursor: pointer;
+      border-radius: 50%;
+      border: 2px solid var(--bg-tertiary);
+      box-shadow: 0 0 6px rgba(124, 58, 237, 0.4);
+      transition: all 0.2s ease;
+    }
+
+    .scale-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      box-shadow: 0 0 8px rgba(124, 58, 237, 0.6);
+    }
+
+    .scale-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: var(--accent-primary);
+      cursor: pointer;
+      border-radius: 50%;
+      border: 2px solid var(--bg-tertiary);
+      box-shadow: 0 0 6px rgba(124, 58, 237, 0.4);
+    }
+
+    .scale-value {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-primary);
+      min-width: 40px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    /* Controles de Material */
+    .material-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .material-slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .material-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .material-slider-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-primary);
+    }
+
+    .material-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--border-primary);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .material-slider:hover {
+      background: var(--accent-primary);
+    }
+
+    .material-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: var(--accent-primary);
+      cursor: pointer;
+      border-radius: 50%;
+      border: 2px solid var(--bg-tertiary);
+      box-shadow: 0 0 6px rgba(124, 58, 237, 0.4);
+      transition: all 0.2s ease;
+    }
+
+    .material-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      box-shadow: 0 0 8px rgba(124, 58, 237, 0.6);
+    }
+
+    .material-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: var(--accent-primary);
+      cursor: pointer;
+      border-radius: 50%;
+      border: 2px solid var(--bg-tertiary);
+      box-shadow: 0 0 6px rgba(124, 58, 237, 0.4);
+    }
+
+    .material-value {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-primary);
+      min-width: 40px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .card-footer {
+      padding: 10px 14px;
+      border-top: 1px solid var(--border-primary);
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .remove-object-btn-new {
+      padding: 6px 12px;
+      background: transparent;
+      color: var(--accent-red);
+      border: 1px solid var(--accent-red);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all var(--transition-fast);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .remove-object-btn-new:hover {
+      background: var(--accent-red);
+      color: var(--text-primary);
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+      transform: translateY(-1px);
+    }
+
+    /* ===== ESTILOS PARA ESTADO VAZIO ===== */
+    .room-objects-list:empty::before {
+      content: "Nenhum objeto carregado";
+      display: block;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 40px 20px;
+      font-style: italic;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      border: 1px dashed var(--border-primary);
+      margin: 20px 0;
+    }
+
+    /* ===== ANIMAÇÕES MELHORADAS ===== */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Animações escalonadas para múltiplos cards */
+    .room-object-card:nth-child(1) { animation-delay: 0.1s; }
+    .room-object-card:nth-child(2) { animation-delay: 0.2s; }
+    .room-object-card:nth-child(3) { animation-delay: 0.3s; }
+    .room-object-card:nth-child(4) { animation-delay: 0.4s; }
+    .room-object-card:nth-child(5) { animation-delay: 0.5s; }
+    .room-object-card:nth-child(6) { animation-delay: 0.6s; }
+    .room-object-card:nth-child(7) { animation-delay: 0.7s; }
+    .room-object-card:nth-child(8) { animation-delay: 0.8s; }
+
+    /* ===== ESTILOS PARA RESPONSIVIDADE ===== */
+    @media (max-width: 768px) {
+      .transform-inputs {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .input-group-label {
+        padding: 0 6px;
+        font-size: 11px;
+      }
+
+      .transform-input-new {
+        padding: 8px 6px;
+        font-size: 14px; /* Melhor para toque */
+      }
+
+      .scale-slider-container {
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+      }
+
+      .scale-value {
+        text-align: center;
+        padding: 4px 0;
+      }
+    }
+
+    /* Modo sala ativo */
+    body.room-mode #left-panel {
+      display: none;
+    }
+
+    body.room-mode #room-panel {
+      display: flex;
+    }
+
+    body.room-mode #help-panel {
+      right: 360px;
+      top: 80px;
+      max-height: calc(100vh - 100px);
+    }
+
+    /* Gizmos de transformação */
+    .transform-gizmo {
+      position: absolute;
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    .transform-gizmo .axis {
+      position: absolute;
+      width: 60px;
+      height: 4px;
+      background: currentColor;
+      transform-origin: 0 50%;
+      opacity: 0.8;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .transform-gizmo .axis:hover {
+      opacity: 1;
+    }
+
+    .transform-gizmo .axis.x-axis {
+      color: #ff4444;
+      transform: rotateY(90deg);
+    }
+
+    .transform-gizmo .axis.y-axis {
+      color: #44ff44;
+    }
+
+    .transform-gizmo .axis.z-axis {
+      color: #4444ff;
+      transform: rotateX(90deg);
+    }
+
+    .transform-gizmo .handle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: currentColor;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .transform-gizmo .handle.x-handle {
+      color: #ff4444;
+      left: 60px;
+    }
+
+    .transform-gizmo .handle.y-handle {
+      color: #44ff44;
+      top: -60px;
+    }
+
+    .transform-gizmo .handle.z-handle {
+      color: #4444ff;
+      left: 60px;
+      top: -60px;
+    }
+
+    /* Animações para o painel da sala */
+    @keyframes slideInLeft {
+      from {
+        opacity: 0;
+        transform: translateX(-20px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+      }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Animações de entrada para itens da sala */
+    .room-object-item {
+      animation: fadeInUp 0.3s ease-out both;
+    }
+
+    .room-object-item:nth-child(1) { animation-delay: 0.1s; }
+    .room-object-item:nth-child(2) { animation-delay: 0.2s; }
+    .room-object-item:nth-child(3) { animation-delay: 0.3s; }
+    .room-object-item:nth-child(4) { animation-delay: 0.4s; }
+    .room-object-item:nth-child(5) { animation-delay: 0.5s; }
   </style>
 </head>
 <body>
@@ -1550,6 +2233,60 @@
       </div>
     </div>
 
+    <!-- Painel do Modo Sala Ambiente -->
+    <div id="room-panel" style="display: none;">
+      <div class="room-header">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9,22 9,12 15,12 15,22"/>
+          </svg>
+          Modo Sala Ambiente
+        </h3>
+        <p class="room-description">Carregue objetos voxel exportados e posicione-os em um ambiente 3D</p>
+      </div>
+
+      <div class="room-content">
+        <div class="room-section">
+          <h4>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17,8 12,3 7,8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Carregar Objeto
+          </h4>
+          <input type="file" id="roomLoadInput" accept=".html,.json" class="room-file-input">
+          <button id="roomLoadBtn" class="room-btn">Carregar Objeto</button>
+        </div>
+
+        <div class="room-section">
+          <h4>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            Objetos na Sala
+          </h4>
+          <div id="roomObjectsList" class="room-objects-list">
+            <!-- Objetos serão adicionados dinamicamente aqui -->
+          </div>
+        </div>
+
+        <div class="room-section">
+          <h4>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            Controles
+          </h4>
+          <button id="roomBackBtn" class="room-btn secondary">Voltar ao Editor</button>
+          <button id="roomSaveBtn" class="room-btn">Salvar Sala</button>
+          <button id="roomClearBtn" class="room-btn danger">Limpar Sala</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Barra Vertical de Ícones -->
     <div id="icon-toolbar">
       <!-- Logo da Aplicação -->
@@ -1617,6 +2354,13 @@
         </svg>
       </div>
       
+      <div class="icon-btn" id="roomModeBtn" data-tooltip="Modo Sala Ambiente">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9,22 9,12 15,12 15,22"/>
+        </svg>
+      </div>
+      
       <!-- Contador de Voxels na parte inferior -->
       <div id="voxel-counter-icon" data-tooltip="Voxel Count">
         <div id="voxelCount">0</div>
@@ -1680,11 +2424,13 @@
     Promise.all([
       import('./modules/colorSystem.js'),
       import('./modules/referenceSystem.js'),
-      import('./modules/mouseSystem.js')
-    ]).then(([colorModule, referenceModule, mouseModule]) => {
+      import('./modules/mouseSystem.js'),
+      import('./modules/roomMode.js')
+    ]).then(([colorModule, referenceModule, mouseModule, roomModule]) => {
       window.ColorSystem = colorModule.ColorSystem;
       window.ReferenceImageSystem = referenceModule.ReferenceImageSystem;
       window.MouseInteractionSystem = mouseModule.MouseInteractionSystem;
+      window.RoomModeSystem = roomModule.RoomModeSystem;
       
       // Carregar o script principal após módulos estarem prontos
       const script = document.createElement('script');

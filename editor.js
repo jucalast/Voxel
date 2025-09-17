@@ -107,8 +107,10 @@ function initEditor() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.LinearToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
+
+  console.log('🎨 Renderer otimizado com ACES tone mapping e exposição 1.2x');
 
   resizeRenderer();
   window.addEventListener('resize', resizeRenderer);
@@ -127,16 +129,17 @@ function initEditor() {
   }
 
   // =====================================================================
-  // ILUMINAÇÃO
+  // ILUMINAÇÃO OTIMIZADA PARA MELHOR VISIBILIDADE
   // =====================================================================
 
-  const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+  // Luz ambiente mais forte para melhor visibilidade geral
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
   scene.add(ambientLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  // Luz direcional principal (mais forte e melhor posicionada)
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
   directionalLight.position.set(15, 25, 15);
   directionalLight.target.position.set(0, 0, 0);
-
   directionalLight.castShadow = true;
   directionalLight.shadow.mapSize.width = 2048;
   directionalLight.shadow.mapSize.height = 2048;
@@ -147,17 +150,36 @@ function initEditor() {
   directionalLight.shadow.camera.top = 30;
   directionalLight.shadow.camera.bottom = -30;
   directionalLight.shadow.bias = -0.0001;
-
   scene.add(directionalLight);
   scene.add(directionalLight.target);
 
-  const fillLight = new THREE.DirectionalLight(0x8080ff, 0.15);
+  // Luz de preenchimento para reduzir sombras fortes
+  const fillLight = new THREE.DirectionalLight(0x8080ff, 0.3);
   fillLight.position.set(-10, 15, -10);
   scene.add(fillLight);
 
-  const backLight = new THREE.DirectionalLight(0xff8080, 0.1);
+  // Luz traseira para melhor iluminação geral
+  const backLight = new THREE.DirectionalLight(0xff8080, 0.2);
   backLight.position.set(0, 10, -15);
   scene.add(backLight);
+
+  // Luz superior para iluminação uniforme
+  const topLight = new THREE.DirectionalLight(0xffffff, 0.4);
+  topLight.position.set(0, 20, 0);
+  topLight.target.position.set(0, 0, 0);
+  scene.add(topLight);
+  scene.add(topLight.target);
+
+  // Luzes pontuais para iluminação local adicional
+  const pointLight1 = new THREE.PointLight(0xffffff, 0.6, 25);
+  pointLight1.position.set(8, 8, 8);
+  scene.add(pointLight1);
+
+  const pointLight2 = new THREE.PointLight(0xffffff, 0.6, 25);
+  pointLight2.position.set(-8, 8, -8);
+  scene.add(pointLight2);
+
+  console.log('💡 Sistema de iluminação otimizado configurado com 7 luzes');
 
   // =====================================================================
   // CONTROLES DE CÂMERA E GRADE
@@ -270,13 +292,19 @@ function initEditor() {
     }
     
     const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const material = new THREE.MeshStandardMaterial({ 
+    const material = new THREE.MeshStandardMaterial({
       color,
-      roughness: 0.8,
-      metalness: 0.0,
-      transparent: false,
-      emissive: new THREE.Color(color).multiplyScalar(0.1)
+      roughness: 0.4,        // Reduzido para mais brilho/reflexão
+      metalness: 0.1,        // Levemente metálico para melhor definição
+      emissive: new THREE.Color(color).multiplyScalar(0.05), // Emissão sutil para melhor visibilidade
+      emissiveIntensity: 0.1
     });
+
+    // Adicionar bordas sutis para melhor definição dos voxels
+    material.transparent = true;
+    material.opacity = 0.95;
+
+    console.log(`🎨 Material otimizado criado para voxel: ${color.toString(16)}`);
     
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(gridX, gridY, gridZ); // Usa coordenadas alinhadas
@@ -1668,23 +1696,25 @@ function initEditor() {
   }
   
   function addSelectionHighlight(voxel) {
-    // Criar outline brilhante para voxel selecionado
-    const outlineGeometry = new THREE.BoxGeometry(1.1, 1.1, 1.1);
+    // Criar outline brilhante e otimizado para voxel selecionado
+    const outlineGeometry = new THREE.BoxGeometry(1.15, 1.15, 1.15);
     const outlineMaterial = new THREE.MeshBasicMaterial({
       color: 0x00ffff,
       transparent: true,
-      opacity: 0.3,
+      opacity: 0.8,
       wireframe: true,
-      wireframeLinewidth: 2
+      wireframeLinewidth: 3
     });
-    
+
     const outline = new THREE.Mesh(outlineGeometry, outlineMaterial);
     outline.position.copy(voxel.position);
     outline.userData.isSelectionOutline = true;
     outline.userData.parentVoxel = voxel;
-    
+
     scene.add(outline);
     voxel.userData.selectionOutline = outline;
+
+    console.log('✨ Gizmo de seleção otimizado criado');
   }
   
   function removeSelectionHighlight(voxel) {
@@ -2803,6 +2833,18 @@ function initEditor() {
   console.log('Cena criada com', scene.children.length, 'objetos');
   console.log('Renderer ativo:', !!renderer);
   console.log('Camera posicionada em:', camera.position);
+
+  // =====================================================================
+  // INICIALIZAÇÃO DO SISTEMA DE MODO SALA AMBIENTE
+  // =====================================================================
+
+  // Criar instância do sistema de modo sala
+  const roomModeSystem = new window.RoomModeSystem(scene, camera, controls, updateCursor, renderer);
+
+  // Configurar variáveis do editor no sistema de sala
+  roomModeSystem.setEditorVars(distance, angleX, angleY);
+
+  console.log('🎭 Sistema de Modo Sala Ambiente carregado com sucesso!');
 
 } // Fim da função initEditor()
 
