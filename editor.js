@@ -1845,6 +1845,18 @@ function initEditor() {
   saveState();
 
   // =====================================================================
+  // INICIALIZAÇÃO DO SISTEMA DE MODO SALA AMBIENTE
+  // =====================================================================
+
+  // Criar instância do sistema de modo sala
+  const roomModeSystem = new window.RoomModeSystem(scene, camera, controls, updateCursor, renderer);
+
+  // Configurar variáveis do editor no sistema de sala
+  roomModeSystem.setEditorVars(distance, angleX, angleY);
+
+  console.log('🎭 Sistema de Modo Sala Ambiente carregado com sucesso!');
+
+  // =====================================================================
   // LOOP DE RENDERIZAÇÃO
   // =====================================================================
 
@@ -1863,6 +1875,12 @@ function initEditor() {
     frameCount++;
     
     controls.update();
+    
+    // Atualizar movimento do modo caminhar se estiver ativo
+    if (roomModeSystem) {
+      roomModeSystem.updateMovement();
+    }
+    
     renderer.render(scene, camera);
   }
   animate();
@@ -2833,18 +2851,6 @@ function initEditor() {
   console.log('Cena criada com', scene.children.length, 'objetos');
   console.log('Renderer ativo:', !!renderer);
   console.log('Camera posicionada em:', camera.position);
-
-  // =====================================================================
-  // INICIALIZAÇÃO DO SISTEMA DE MODO SALA AMBIENTE
-  // =====================================================================
-
-  // Criar instância do sistema de modo sala
-  const roomModeSystem = new window.RoomModeSystem(scene, camera, controls, updateCursor, renderer);
-
-  // Configurar variáveis do editor no sistema de sala
-  roomModeSystem.setEditorVars(distance, angleX, angleY);
-
-  console.log('🎭 Sistema de Modo Sala Ambiente carregado com sucesso!');
 
 } // Fim da função initEditor()
 

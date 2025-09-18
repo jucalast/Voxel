@@ -2,6 +2,46 @@
 
 Um editor interativo para criar arte voxel 3D no navegador usando Three.js.
 
+## 🚀 Desenvolvimento com Live Reload
+
+Para desenvolvimento mais eficiente com recarregamento automático:
+
+### Opção 1: Usando npm scripts (Recomendado)
+```bash
+# Instalar dependências (se necessário)
+npm install
+
+# Iniciar servidor de desenvolvimento com live reload
+npm run dev
+```
+
+### Opção 2: Usando live-server diretamente
+```bash
+# Iniciar servidor na porta 3000
+live-server --port=3000 --host=localhost --open=/
+
+# Ou usar o script npm
+npm start
+```
+
+### Opção 3: Servidor público (para testes em outros dispositivos)
+```bash
+# Disponibilizar na rede local
+npm run serve
+```
+
+**Características do Live Reload:**
+- ✅ Recarregamento automático ao salvar arquivos
+- ✅ Servidor local com hot reload
+- ✅ Suporte a múltiplos dispositivos na mesma rede
+- ✅ Monitoramento de mudanças em HTML, CSS e JavaScript
+
+### Opção 4: VS Code Live Server (Alternativa)
+1. Instale a extensão "Live Server" no VS Code
+2. Clique com botão direito no `index.html`
+3. Selecione "Open with Live Server"
+4. O navegador abrirá automaticamente com live reload
+
 ## Funcionalidades
 
 ### Interface de Criação

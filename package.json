@@ -1,0 +1,18 @@
+{
+  "name": "vertex-voxel-editor",
+  "version": "1.0.0",
+  "description": "Editor 3D de Voxels com interface moderna",
+  "main": "index.html",
+  "scripts": {
+    "start": "live-server --port=3000 --host=localhost --open=/",
+    "dev": "live-server --port=3000 --host=localhost --open=/ --watch=index.html,modules/*.js,editor.js",
+    "serve": "live-server --port=8080 --host=0.0.0.0"
+  },
+  "keywords": ["voxel", "3d", "editor", "three.js"],
+  "author": "Vertex Team",
+  "license": "MIT",
+  "devDependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

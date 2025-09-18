@@ -49,6 +49,17 @@ export class RoomModeSystem {
     this.roomFloor = null;
     this.roomWalls = [];
 
+    // Propriedades para movimento
+    this.isWalkingMode = false;
+    this.moveSpeed = 0.15; // Velocidade mais realista para caminhar
+    this.mouseSensitivity = 0.002;
+    this.keys = {};
+    this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    this.PI_2 = Math.PI / 2;
+    this.minPolarAngle = 0;
+    this.maxPolarAngle = Math.PI;
+    this.walkModeBtn = null;
+
     // Elementos DOM do modo sala
     this.roomModeBtn = document.getElementById('roomModeBtn');
     this.roomPanel = document.getElementById('room-panel');
@@ -58,6 +69,8 @@ export class RoomModeSystem {
     this.roomBackBtn = document.getElementById('roomBackBtn');
     this.roomSaveBtn = document.getElementById('roomSaveBtn');
     this.roomClearBtn = document.getElementById('roomClearBtn');
+    this.roomWalkBtn = document.getElementById('roomWalkBtn');
+    console.log('🚶 Botão caminhar encontrado:', !!this.roomWalkBtn);
 
     // Referências para elementos do editor
     this.leftPanel = document.getElementById('left-panel');
@@ -74,6 +87,9 @@ export class RoomModeSystem {
     // Event listeners para o modo sala
     this.roomModeBtn.addEventListener('click', () => this.toggleRoomMode());
     this.roomBackBtn.addEventListener('click', () => this.toggleRoomMode());
+    this.roomWalkBtn.addEventListener('click', () => {
+      this.toggleWalkingMode();
+    });
     this.roomLoadBtn.addEventListener('click', () => this.roomLoadInput.click());
     this.roomLoadInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
@@ -88,6 +104,452 @@ export class RoomModeSystem {
     });
 
     this.roomSaveBtn.addEventListener('click', () => this.saveRoom());
+
+    // Inicializar controles de movimento
+    this.initMovementControls();
+  }
+
+  // Inicializar controles de movimento
+  initMovementControls() {
+    // Event listeners para teclado
+    document.addEventListener('keydown', (e) => this.onKeyDown(e));
+    document.addEventListener('keyup', (e) => this.onKeyUp(e));
+
+    // Event listeners para mouse
+    document.addEventListener('mousedown', (e) => this.onMouseDown(e));
+    document.addEventListener('mouseup', (e) => this.onMouseUp(e));
+    document.addEventListener('mousemove', (e) => this.onMouseMove(e));
+
+    // Prevenir contexto menu do botão direito
+    document.addEventListener('contextmenu', (e) => {
+      if (this.isWalkingMode) {
+        e.preventDefault();
+      }
+    });
+
+    // Pointer lock para mouse look
+    document.addEventListener('pointerlockchange', () => this.onPointerLockChange());
+    document.addEventListener('pointerlockerror', () => this.onPointerLockError());
+  }
+
+  // Métodos de controle de movimento
+  onKeyDown(event) {
+    if (!this.isWalkingMode) return;
+
+    this.keys[event.code] = true;
+
+    // ESC para sair do modo caminhar
+    if (event.code === 'Escape') {
+      this.exitWalkingMode();
+      event.preventDefault();
+      return;
+    }
+
+    // Prevenir comportamento padrão para teclas de movimento
+    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft'].includes(event.code)) {
+      event.preventDefault();
+    }
+  }
+
+  onKeyUp(event) {
+    this.keys[event.code] = false;
+  }
+
+  onMouseDown(event) {
+    if (!this.isRoomMode) return;
+
+    // Botão direito do mouse para ativar/desativar modo caminhar
+    if (event.button === 2) {
+      event.preventDefault();
+      this.toggleWalkingMode();
+    }
+  }
+
+  onMouseUp(event) {
+    // Implementação futura se necessário
+  }
+
+  onMouseMove(event) {
+    if (!this.isWalkingMode) return;
+
+    // Usar movimento relativo do mouse para rotação (sem pointer lock)
+    const movementX = event.movementX || 0;
+    const movementY = event.movementY || 0;
+
+    // Aplicar sensibilidade do mouse
+    const deltaX = movementX * this.mouseSensitivity;
+    const deltaY = movementY * this.mouseSensitivity;
+
+    this.euler.setFromQuaternion(this.camera.quaternion);
+
+    // Atualizar rotação horizontal (yaw)
+    this.euler.y -= deltaX;
+
+    // Atualizar rotação vertical (pitch) com limites
+    this.euler.x -= deltaY;
+    this.euler.x = Math.max(-this.PI_2 + 0.1, Math.min(this.PI_2 - 0.1, this.euler.x));
+
+    this.camera.quaternion.setFromEuler(this.euler);
+  }
+
+  onPointerLockChange() {
+    const wasLocked = this.isPointerLocked();
+
+    if (wasLocked && !this.isWalkingMode) {
+      // Pointer lock foi ativado, entrar no modo caminhar
+      this.isWalkingMode = true;
+      this.updateWalkingModeUI();
+      console.log('🚶 Modo caminhar ativado via pointer lock');
+    } else if (!wasLocked && this.isWalkingMode) {
+      // Pointer lock foi desativado, sair do modo caminhar
+      this.isWalkingMode = false;
+      this.updateWalkingModeUI();
+      console.log('🚶 Modo caminhar desativado via pointer lock');
+    }
+  }
+
+  onPointerLockError() {
+    console.warn('Erro ao ativar pointer lock para modo caminhar');
+    this.isWalkingMode = false;
+    this.updateWalkingModeUI();
+  }
+
+  isPointerLocked() {
+    return document.pointerLockElement === document.body ||
+           (this.renderer && document.pointerLockElement === this.renderer.domElement);
+  }
+
+  toggleWalkingMode() {
+    if (this.isWalkingMode) {
+      this.exitWalkingMode();
+    } else {
+      this.enterWalkingMode();
+    }
+  }
+
+  enterWalkingMode() {
+    if (!this.isRoomMode) {
+      console.warn('❌ Não é possível ativar modo caminhar fora do modo sala');
+      return;
+    }
+
+    // Salvar posição atual dos controles
+    this.savedControlsPosition = {
+      x: this.controls.target.x,
+      y: this.controls.target.y,
+      z: this.controls.target.z
+    };
+
+    // Salvar posição e rotação da câmera
+    this.savedCameraPosition = this.camera.position.clone();
+    this.savedCameraQuaternion = this.camera.quaternion.clone();
+
+    // Salvar FOV atual da câmera
+    this.savedCameraFov = this.camera.fov;
+
+    // Desabilitar controles orbitais
+    this.controls.enabled = false;
+
+    // Posicionar câmera dentro da sala com altura de 2 blocos
+    this.camera.position.set(0, 2, 0); // Centro da sala, altura de 2 blocos
+    this.camera.lookAt(0, 2, -5); // Olhando para frente (parede frontal)
+
+    // Ajustar FOV para visão em primeira pessoa mais imersiva
+    this.camera.fov = 75;
+    this.camera.updateProjectionMatrix();
+
+    // Resetar rotação do mouse
+    this.euler.set(0, 0, 0, 'YXZ');
+
+    // Modo caminhar ativado
+    this.isWalkingMode = true;
+    this.updateWalkingModeUI();
+
+    // Focar no canvas para capturar eventos de teclado
+    if (this.renderer && this.renderer.domElement) {
+      this.renderer.domElement.focus();
+    }
+  }
+
+  exitWalkingMode() {
+    // Liberar pointer lock
+    if (this.isPointerLocked()) {
+      document.exitPointerLock();
+    }
+
+    // Reabilitar controles orbitais
+    this.controls.enabled = true;
+
+    // Restaurar posição dos controles se necessário
+    if (this.savedControlsPosition) {
+      this.controls.target.copy(this.savedControlsPosition);
+    }
+
+    // Restaurar posição e rotação da câmera
+    if (this.savedCameraPosition) {
+      this.camera.position.copy(this.savedCameraPosition);
+    }
+    if (this.savedCameraQuaternion) {
+      this.camera.quaternion.copy(this.savedCameraQuaternion);
+    }
+
+    // Restaurar FOV da câmera
+    if (this.savedCameraFov) {
+      this.camera.fov = this.savedCameraFov;
+      this.camera.updateProjectionMatrix();
+    }
+
+    this.isWalkingMode = false;
+    this.updateWalkingModeUI();
+  }
+
+  updateWalkingModeUI() {
+    // Atualizar cursor
+    if (this.isWalkingMode) {
+      document.body.style.cursor = 'none'; // Esconder cursor padrão
+      this.showWalkingCursor();
+    } else {
+      document.body.style.cursor = '';
+      this.hideWalkingCursor();
+    }
+
+    // Atualizar indicador visual
+    this.updateWalkingIndicator();
+  }
+
+  showWalkingCursor() {
+    let cursor = document.getElementById('walking-cursor');
+    if (!cursor) {
+      cursor = document.createElement('div');
+      cursor.id = 'walking-cursor';
+      cursor.style.cssText = `
+        position: fixed;
+        width: 20px;
+        height: 20px;
+        background: radial-gradient(circle, rgba(16, 185, 129, 0.8) 0%, rgba(16, 185, 129, 0.4) 50%, transparent 70%);
+        border: 2px solid #10b981;
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 9999;
+        transform: translate(-50%, -50%);
+        transition: all 0.1s ease-out;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+      `;
+      document.body.appendChild(cursor);
+    }
+
+    // Atualizar posição do cursor customizado
+    const updateCursorPosition = (e) => {
+      if (this.isWalkingMode && cursor) {
+        cursor.style.left = e.clientX + 'px';
+        cursor.style.top = e.clientY + 'px';
+      }
+    };
+
+    document.addEventListener('mousemove', updateCursorPosition);
+    this.cursorUpdateHandler = updateCursorPosition;
+
+    cursor.style.display = 'block';
+  }
+
+  hideWalkingCursor() {
+    const cursor = document.getElementById('walking-cursor');
+    if (cursor) {
+      cursor.style.display = 'none';
+    }
+
+    if (this.cursorUpdateHandler) {
+      document.removeEventListener('mousemove', this.cursorUpdateHandler);
+      this.cursorUpdateHandler = null;
+    }
+  }
+
+  updateWalkingIndicator() {
+    // Implementar indicador visual do modo caminhar
+    let indicator = document.getElementById('walking-mode-indicator');
+
+    if (this.isWalkingMode) {
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'walking-mode-indicator';
+        indicator.innerHTML = `
+          <div style="
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(26, 26, 26, 0.95), rgba(42, 42, 42, 0.95));
+            backdrop-filter: blur(15px);
+            border: 2px solid rgba(124, 58, 237, 0.6);
+            border-radius: 16px;
+            padding: 16px 24px;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 1000;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            text-align: center;
+            animation: fadeInUp 0.3s ease-out;
+            max-width: 400px;
+          ">
+            <div style="margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite;"></div>
+              <span style="font-size: 16px; font-weight: 600; color: #10b981;">🚶 Modo Caminhar Ativo</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+              <div style="background: rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="font-size: 11px; color: #fbbf24; margin-bottom: 4px;">MOVIMENTO</div>
+                <div style="font-size: 10px; color: #d1d5db;">WASD ou ↑↓←→</div>
+              </div>
+              <div style="background: rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="font-size: 11px; color: #06b6d4; margin-bottom: 4px;">VISÃO</div>
+                <div style="font-size: 10px; color: #d1d5db;">Mouse para olhar</div>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+              <div style="background: rgba(255, 255, 255, 0.05); padding: 6px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="font-size: 9px; color: #10b981;">SUBIR</div>
+                <div style="font-size: 10px; color: #d1d5db; font-weight: 600;">ESPAÇO</div>
+              </div>
+              <div style="background: rgba(255, 255, 255, 0.05); padding: 6px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="font-size: 9px; color: #ef4444;">DESCER</div>
+                <div style="font-size: 10px; color: #d1d5db; font-weight: 600;">SHIFT</div>
+              </div>
+              <div style="background: rgba(255, 255, 255, 0.05); padding: 6px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="font-size: 9px; color: #f59e0b;">SAIR</div>
+                <div style="font-size: 10px; color: #d1d5db; font-weight: 600;">ESC</div>
+              </div>
+            </div>
+
+            <div style="font-size: 11px; opacity: 0.7; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 8px;">
+              Altura: 2 blocos • Colisão ativa • Dentro da sala
+            </div>
+          </div>
+
+          <style>
+            @keyframes fadeInUp {
+              from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-10px);
+              }
+              to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+              }
+            }
+
+            @keyframes pulse {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.5; }
+            }
+          </style>
+        `;
+        document.body.appendChild(indicator);
+      }
+      // Garantir que o indicador esteja visível
+      if (indicator) {
+        indicator.style.display = 'block';
+      }
+    } else {
+      if (indicator) {
+        indicator.style.display = 'none';
+      }
+    }
+  }
+
+  updateMovement() {
+    if (!this.isWalkingMode) return;
+
+    const direction = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    const forward = new THREE.Vector3();
+
+    // Obter direções baseadas na rotação da câmera
+    this.camera.getWorldDirection(forward);
+    forward.y = 0; // Manter movimento no plano horizontal
+    forward.normalize();
+
+    right.crossVectors(forward, this.camera.up).normalize();
+
+    // Calcular movimento baseado nas teclas pressionadas
+    if (this.keys['KeyW'] || this.keys['ArrowUp']) {
+      direction.add(forward);
+    }
+    if (this.keys['KeyS'] || this.keys['ArrowDown']) {
+      direction.sub(forward);
+    }
+    if (this.keys['KeyA'] || this.keys['ArrowLeft']) {
+      direction.sub(right);
+    }
+    if (this.keys['KeyD'] || this.keys['ArrowRight']) {
+      direction.add(right);
+    }
+
+    // Movimento vertical
+    if (this.keys['Space']) {
+      direction.y += 1;
+    }
+    if (this.keys['ShiftLeft']) {
+      direction.y -= 1;
+    }
+
+    // Aplicar movimento se houver direção
+    if (direction.length() > 0) {
+      direction.normalize();
+      direction.multiplyScalar(this.moveSpeed);
+
+      // Verificar colisões antes de mover
+      const newPosition = this.camera.position.clone().add(direction);
+      if (this.checkCollision(newPosition)) {
+        this.camera.position.copy(newPosition);
+      }
+    }
+  }
+
+  checkCollision(position) {
+    // Limites da sala (considerando paredes de 0.2 de espessura)
+    const roomSize = 9.8; // 10 - 0.2 (parede tem 0.2 de espessura)
+    const wallThickness = 0.2;
+
+    // Altura do jogador (de 1.8 a 2.2 unidades)
+    const playerHeight = 2.0;
+    const playerBottom = position.y - 0.9; // Base do jogador
+    const playerTop = position.y + 0.1; // Topo do jogador
+
+    // Verificar colisão com paredes (considerando altura)
+    if (Math.abs(position.x) > roomSize ||
+        Math.abs(position.z) > roomSize) {
+      return false; // Colisão detectada com parede
+    }
+
+    // Verificar se o jogador está no chão (não pode passar através do chão)
+    if (playerBottom < 0) {
+      return false; // Colisão com o chão
+    }
+
+    // Verificar se o jogador está no teto (não pode passar através do teto)
+    if (playerTop > 10) {
+      return false; // Colisão com o teto
+    }
+
+    // Verificar colisão com objetos (considerando altura do jogador)
+    for (const obj of this.roomObjects) {
+      const objBox = new THREE.Box3().setFromObject(obj.meshGroup);
+
+      // Criar bounding box do jogador considerando sua altura
+      const playerBox = new THREE.Box3(
+        new THREE.Vector3(position.x - 0.4, playerBottom, position.z - 0.4),
+        new THREE.Vector3(position.x + 0.4, playerTop, position.z + 0.4)
+      );
+
+      if (objBox.intersectsBox(playerBox)) {
+        return false; // Colisão com objeto
+      }
+    }
+
+    return true; // Sem colisão
   }
 
   // Configurar variáveis do editor
@@ -192,8 +654,10 @@ export class RoomModeSystem {
   }
 
   // Alternar entre modos
+  // Alternar entre modos
   toggleRoomMode() {
     this.isRoomMode = !this.isRoomMode;
+    console.log('🎭 Toggle room mode. Novo estado:', this.isRoomMode);
 
     if (this.isRoomMode) {
       this.enterRoomMode();
@@ -226,7 +690,7 @@ export class RoomModeSystem {
     this.createRoomGeometry();
 
     // Configurar câmera para visão de sala
-    this.camera.position.set(10, 8, 10);
+    this.camera.position.set(20, 15, 20);
     this.camera.lookAt(0, 0, 0);
     this.controls.update();
 
@@ -521,6 +985,7 @@ export class RoomModeSystem {
       objDiv.className = 'room-object-card';
       objDiv.dataset.objectId = obj.id; // Adicionar dataset para identificação
       objDiv.innerHTML = `
+        <div class="card-header">
           <h5>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
                <path d="M10 2a.75.75 0 01.75.75v.51a4.52 4.52 0 012.14.996l.45-.45a.75.75 0 111.06 1.06l-.45.45c.36.47.65.99.86 1.55h.51a.75.75 0 110 1.5h-.51a4.52 4.52 0 01-.86 1.55l.45.45a.75.75 0 11-1.06 1.06l-.45-.45a4.52 4.52 0 01-2.14.996v.51a.75.75 0 11-1.5 0v-.51a4.52 4.52 0 01-2.14-.996l-.45.45a.75.75 0 11-1.06-1.06l.45-.45a4.52 4.52 0 01-.86-1.55h-.51a.75.75 0 010-1.5h.51c.21-.56.5-1.08.86-1.55l-.45-.45a.75.75 0 011.06-1.06l.45.45c.6-.43 1.32-.77 2.14-.996V2.75A.75.75 0 0110 2zM8.5 10a1.5 1.5 0 103 0 1.5 1.5 0 00-3 0z" />
@@ -539,27 +1004,21 @@ export class RoomModeSystem {
               </svg>
               <span>Posição</span>
             </div>
-            <div class="transform-inputs">
-              <div class="input-group">
+            <div class="new-transform-inputs">
+              <div class="new-transform-slider-group">
                 <span class="input-group-label" style="color: #ef4444;">X</span>
-                <div class="slider-container">
-                  <input type="range" class="transform-slider" data-transform="position" data-axis="x" min="-20" max="20" step="0.1" value="${obj.position.x.toFixed(1)}">
-                  <span class="slider-value">${obj.position.x.toFixed(1)}</span>
-                </div>
+                <input type="range" class="new-transform-slider" data-transform="position" data-axis="x" min="-20" max="20" step="0.1" value="${obj.position.x.toFixed(1)}">
+                <span class="slider-value-new">${obj.position.x.toFixed(1)}</span>
               </div>
-              <div class="input-group">
+              <div class="new-transform-slider-group">
                 <span class="input-group-label" style="color: #10b981;">Y</span>
-                <div class="slider-container">
-                  <input type="range" class="transform-slider" data-transform="position" data-axis="y" min="-20" max="20" step="0.1" value="${obj.position.y.toFixed(1)}">
-                  <span class="slider-value">${obj.position.y.toFixed(1)}</span>
-                </div>
+                <input type="range" class="new-transform-slider" data-transform="position" data-axis="y" min="-20" max="20" step="0.1" value="${obj.position.y.toFixed(1)}">
+                <span class="slider-value-new">${obj.position.y.toFixed(1)}</span>
               </div>
-              <div class="input-group">
+              <div class="new-transform-slider-group">
                 <span class="input-group-label" style="color: #06b6d4;">Z</span>
-                <div class="slider-container">
-                  <input type="range" class="transform-slider" data-transform="position" data-axis="z" min="-20" max="20" step="0.1" value="${obj.position.z.toFixed(1)}">
-                  <span class="slider-value">${obj.position.z.toFixed(1)}</span>
-                </div>
+                <input type="range" class="new-transform-slider" data-transform="position" data-axis="z" min="-20" max="20" step="0.1" value="${obj.position.z.toFixed(1)}">
+                <span class="slider-value-new">${obj.position.z.toFixed(1)}</span>
               </div>
             </div>
           </div>
@@ -570,27 +1029,21 @@ export class RoomModeSystem {
               </svg>
               <span>Rotação</span>
             </div>
-            <div class="transform-inputs">
-              <div class="input-group">
+            <div class="new-transform-inputs">
+              <div class="new-transform-slider-group">
                 <span class="input-group-label" style="color: #ef4444;">X</span>
-                <div class="slider-container">
-                  <input type="range" class="transform-slider" data-transform="rotation" data-axis="x" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.x).toFixed(0)}">
-                  <span class="slider-value">${THREE.MathUtils.radToDeg(obj.rotation.x).toFixed(0)}°</span>
-                </div>
+                <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="x" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.x).toFixed(0)}">
+                <span class="slider-value-new">${THREE.MathUtils.radToDeg(obj.rotation.x).toFixed(0)}°</span>
               </div>
-              <div class="input-group">
+              <div class="new-transform-slider-group">
                 <span class="input-group-label" style="color: #10b981;">Y</span>
-                <div class="slider-container">
-                  <input type="range" class="transform-slider" data-transform="rotation" data-axis="y" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}">
-                  <span class="slider-value">${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}°</span>
-                </div>
+                <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="y" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}">
+                <span class="slider-value-new">${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}°</span>
               </div>
-              <div class="input-group">
+              <div class="new-transform-slider-group">
                 <span class="input-group-label" style="color: #06b6d4;">Z</span>
-                <div class="slider-container">
-                  <input type="range" class="transform-slider" data-transform="rotation" data-axis="z" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}">
-                  <span class="slider-value">${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}°</span>
-                </div>
+                <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="z" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}">
+                <span class="slider-value-new">${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}°</span>
               </div>
             </div>
           </div>
@@ -615,21 +1068,21 @@ export class RoomModeSystem {
             </div>
             <div class="material-controls">
               <div class="material-slider-group">
-                <label class="material-label">Rugosidade</label>
+                <label class="material-label">Textura</label>
                 <div class="slider-container">
                   <input type="range" class="material-slider" data-obj-id="${obj.id}" data-property="roughness" min="0" max="1" step="0.01" value="${this.getMaterialProperty(obj, 'roughness', 0.4)}">
                   <span class="slider-value">${this.getMaterialProperty(obj, 'roughness', 0.4).toFixed(2)}</span>
                 </div>
               </div>
               <div class="material-slider-group">
-                <label class="material-label">Metal</label>
+                <label class="material-label">Metálico</label>
                 <div class="slider-container">
                   <input type="range" class="material-slider" data-obj-id="${obj.id}" data-property="metalness" min="0" max="1" step="0.01" value="${this.getMaterialProperty(obj, 'metalness', 0.1)}">
                   <span class="slider-value">${this.getMaterialProperty(obj, 'metalness', 0.1).toFixed(2)}</span>
                 </div>
               </div>
               <div class="material-slider-group">
-                <label class="material-label">Emissividade</label>
+                <label class="material-label">Brilho</label>
                 <div class="slider-container">
                   <input type="range" class="material-slider" data-obj-id="${obj.id}" data-property="emissiveIntensity" min="0" max="1" step="0.01" value="${this.getMaterialProperty(obj, 'emissiveIntensity', 0.05)}">
                   <span class="slider-value">${this.getMaterialProperty(obj, 'emissiveIntensity', 0.05).toFixed(2)}</span>
@@ -651,13 +1104,13 @@ export class RoomModeSystem {
     });
 
     // Adicionar event listeners para sliders de transformação
-    this.roomObjectsList.querySelectorAll('.transform-slider').forEach(slider => {
+    this.roomObjectsList.querySelectorAll('.new-transform-slider').forEach(slider => {
       slider.addEventListener('input', (e) => {
         const objId = parseInt(e.target.closest('.room-object-card').dataset.objectId || e.target.dataset.objId);
         const transform = e.target.dataset.transform;
         const axis = e.target.dataset.axis;
         const value = parseFloat(e.target.value);
-        const valueDisplay = e.target.parentElement.querySelector('.slider-value');
+        const valueDisplay = e.target.parentElement.querySelector('.slider-value-new');
 
         const obj = this.roomObjects.find(o => o.id === objId);
         if (obj) {
