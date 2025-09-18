@@ -44,13 +44,14 @@ function initEditor() {
   const referenceUpload = document.getElementById('uploadBtn');
   const referenceFileInput = document.getElementById('fileInput');
   const referenceImage = null; // Não existe mais na sidebar
-  const referenceControls = null; // Não existe mais na sidebar  
+  const referenceControls = null; // Não existe mais na sidebar
   const opacityBtn = null; // Não existe mais na sidebar
   const removeRefBtn = null; // Não existe mais na sidebar
 
-  console.log('Elementos DOM carregados');
+  // Elemento do botão de modo câmera
+  const cameraModeBtn = document.getElementById('cameraModeBtn');
 
-  // =====================================================================
+  console.log('Elementos DOM carregados');  // =====================================================================
   // INICIALIZAÇÃO DOS MÓDULOS
   // =====================================================================
 
@@ -185,6 +186,20 @@ function initEditor() {
   // CONTROLES DE CÂMERA E GRADE
   // =====================================================================
 
+  // Sistema de modos de câmera
+  let cameraMode = 'orbit'; // 'orbit' ou 'walk'
+  let walkSpeed = 0.5;
+  let mouseSensitivity = 0.002;
+  let isPointerLocked = false;
+  let walkDirection = new THREE.Vector3();
+  let walkVelocity = new THREE.Vector3();
+  let walkKeys = { w: false, a: false, s: false, d: false, q: false, e: false };
+
+  // Criar câmera de caminhada (perspectiva)
+  const walkCamera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+  walkCamera.position.set(10, 5, 10);
+  walkCamera.lookAt(0, 0, 0);
+
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.1;
@@ -197,6 +212,212 @@ function initEditor() {
     MIDDLE: THREE.MOUSE.DOLLY,
     RIGHT: THREE.MOUSE.PAN
   };
+
+  // Função para alternar modo de câmera
+  function toggleCameraMode() {
+    cameraMode = cameraMode === 'orbit' ? 'walk' : 'orbit';
+
+    if (cameraMode === 'walk') {
+      // Entrar no modo caminhada
+      console.log('🚶 Modo caminhada ativado');
+
+      // Copiar posição da câmera orbit para a câmera de caminhada
+      walkCamera.position.copy(camera.position);
+      walkCamera.rotation.copy(camera.rotation);
+
+      // Desabilitar controles orbit
+      controls.enabled = false;
+
+      // Esconder grade se estiver muito próxima (pode atrapalhar)
+      if (gridHelper) {
+        gridHelper.visible = false;
+      }
+
+      // Adicionar event listeners para caminhada
+      setupWalkControls();
+
+      // Atualizar cursor
+      canvas.style.cursor = 'none';
+
+    } else {
+      // Voltar para modo orbit
+      console.log('🎥 Modo órbita ativado');
+
+      // Copiar posição da câmera de caminhada para a câmera orbit
+      camera.position.copy(walkCamera.position);
+      camera.lookAt(0, 0, 0);
+
+      // Habilitar controles orbit
+      controls.enabled = true;
+      controls.enableRotate = true;
+      controls.enablePan = true;
+      controls.enableZoom = true;
+
+      // Mostrar grade novamente
+      if (gridHelper) {
+        gridHelper.visible = true;
+      }
+
+      // Remover event listeners de caminhada
+      removeWalkControls();
+
+      // Liberar pointer lock se estiver ativo
+      if (document.pointerLockElement === canvas) {
+        document.exitPointerLock();
+      }
+
+      // Restaurar cursor
+      canvas.style.cursor = 'default';
+    }
+
+    updateCursor();
+  }
+
+  // Configurar controles de caminhada
+  function setupWalkControls() {
+    // Event listeners para teclado
+    document.addEventListener('keydown', handleWalkKeyDown);
+    document.addEventListener('keyup', handleWalkKeyUp);
+
+    // Event listener para mouse (movimento de olhar)
+    document.addEventListener('mousemove', handleWalkMouseMove);
+
+    // Event listener para clique (ativar pointer lock)
+    canvas.addEventListener('click', requestPointerLock);
+
+    // Event listener para pointer lock
+    document.addEventListener('pointerlockchange', handlePointerLockChange);
+  }
+
+  // Remover controles de caminhada
+  function removeWalkControls() {
+    document.removeEventListener('keydown', handleWalkKeyDown);
+    document.removeEventListener('keyup', handleWalkKeyUp);
+    document.removeEventListener('mousemove', handleWalkMouseMove);
+    canvas.removeEventListener('click', requestPointerLock);
+    document.removeEventListener('pointerlockchange', handlePointerLockChange);
+  }
+
+  // Handlers para caminhada
+  function handleWalkKeyDown(event) {
+    if (cameraMode !== 'walk') return;
+
+    switch(event.code) {
+      case 'KeyW':
+        walkKeys.w = true;
+        break;
+      case 'KeyA':
+        walkKeys.a = true;
+        break;
+      case 'KeyS':
+        walkKeys.s = true;
+        break;
+      case 'KeyD':
+        walkKeys.d = true;
+        break;
+      case 'KeyQ':
+        walkKeys.q = true;
+        break;
+      case 'KeyE':
+        walkKeys.e = true;
+        break;
+      case 'ShiftLeft':
+        walkSpeed = 1.0; // Correr
+        break;
+      case 'Escape':
+        toggleCameraMode(); // Voltar para modo orbit
+        break;
+    }
+  }
+
+  function handleWalkKeyUp(event) {
+    if (cameraMode !== 'walk') return;
+
+    switch(event.code) {
+      case 'KeyW':
+        walkKeys.w = false;
+        break;
+      case 'KeyA':
+        walkKeys.a = false;
+        break;
+      case 'KeyS':
+        walkKeys.s = false;
+        break;
+      case 'KeyD':
+        walkKeys.d = false;
+        break;
+      case 'KeyQ':
+        walkKeys.q = false;
+        break;
+      case 'KeyE':
+        walkKeys.e = false;
+        break;
+      case 'ShiftLeft':
+        walkSpeed = 0.5; // Voltar velocidade normal
+        break;
+    }
+  }
+
+  function handleWalkMouseMove(event) {
+    if (cameraMode !== 'walk' || !isPointerLocked) return;
+
+    const movementX = event.movementX || 0;
+    const movementY = event.movementY || 0;
+
+    // Rotacionar câmera baseado no movimento do mouse
+    walkCamera.rotation.y -= movementX * mouseSensitivity;
+    walkCamera.rotation.x -= movementY * mouseSensitivity;
+
+    // Limitar rotação vertical para evitar virar de cabeça para baixo
+    walkCamera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, walkCamera.rotation.x));
+  }
+
+  function requestPointerLock() {
+    if (cameraMode === 'walk' && !isPointerLocked) {
+      canvas.requestPointerLock();
+    }
+  }
+
+  function handlePointerLockChange() {
+    isPointerLocked = (document.pointerLockElement === canvas);
+    if (isPointerLocked) {
+      console.log('🔒 Pointer lock ativado - mova o mouse para olhar ao redor');
+    } else {
+      console.log('🔓 Pointer lock desativado');
+    }
+  }
+
+  // Atualizar movimento da câmera de caminhada
+  function updateWalkMovement() {
+    if (cameraMode !== 'walk') return;
+
+    // Calcular direção do movimento
+    walkDirection.set(0, 0, 0);
+
+    if (walkKeys.w) walkDirection.z -= 1;
+    if (walkKeys.s) walkDirection.z += 1;
+    if (walkKeys.a) walkDirection.x -= 1;
+    if (walkKeys.d) walkDirection.x += 1;
+    if (walkKeys.q) walkDirection.y -= 1;
+    if (walkKeys.e) walkDirection.y += 1;
+
+    // Normalizar direção se houver movimento
+    if (walkDirection.length() > 0) {
+      walkDirection.normalize();
+
+      // Aplicar rotação da câmera à direção
+      walkDirection.applyEuler(new THREE.Euler(0, walkCamera.rotation.y, 0));
+
+      // Aplicar velocidade
+      walkDirection.multiplyScalar(walkSpeed);
+
+      // Atualizar posição da câmera
+      walkCamera.position.add(walkDirection);
+
+      // Manter câmera acima do chão (altura mínima)
+      walkCamera.position.y = Math.max(1, walkCamera.position.y);
+    }
+  }
 
   // Grade
   const gridHelper = new THREE.GridHelper(50, 50, 0x333366, 0x1a1a2e);
@@ -534,11 +755,7 @@ function initEditor() {
   }
 
   function clearAreaSelection() {
-    isAreaSelected = false;
-    selectedArea = null;
-    isCreatingArea = false;
-    isAreaDragging = false;
-    areaCreationStartPos = null;
+   
     clearAreaVisualization();
     clearFillPreview();
     
@@ -1845,6 +2062,19 @@ function initEditor() {
   saveState();
 
   // =====================================================================
+  // EXPOR FUNÇÕES PARA O SISTEMA DE CAMINHADA
+  // =====================================================================
+
+  // Tornar funções essenciais disponíveis globalmente para o sistema de caminhada
+  window.addVoxel = addVoxel;
+  window.removeVoxel = removeVoxel;
+  window.saveState = saveState;
+  window.voxels = voxels;
+  window.colorSystem = colorSystem;
+
+  console.log('🔗 Funções do editor expostas globalmente para integração com walk mode');
+
+  // =====================================================================
   // INICIALIZAÇÃO DO SISTEMA DE MODO SALA AMBIENTE
   // =====================================================================
 
@@ -1853,6 +2083,9 @@ function initEditor() {
 
   // Configurar variáveis do editor no sistema de sala
   roomModeSystem.setEditorVars(distance, angleX, angleY);
+
+  // Inicializar event listeners do sistema de sala
+  roomModeSystem.init();
 
   console.log('🎭 Sistema de Modo Sala Ambiente carregado com sucesso!');
 
@@ -1876,12 +2109,20 @@ function initEditor() {
     
     controls.update();
     
-    // Atualizar movimento do modo caminhar se estiver ativo
-    if (roomModeSystem) {
-      roomModeSystem.updateMovement();
+    // Atualizar sistemas do roomMode
+    if (roomModeSystem && typeof roomModeSystem.update === 'function') {
+      roomModeSystem.update();
     }
     
-    renderer.render(scene, camera);
+    // Usar câmera correta baseada no modo ativo
+    let activeCamera = camera; // Câmera padrão (OrbitControls)
+    
+    // Verificar se o modo caminhada está ativo no roomModeSystem
+    if (roomModeSystem && roomModeSystem.walkBuildModeSystem && roomModeSystem.walkBuildModeSystem.isActive) {
+      activeCamera = roomModeSystem.walkBuildModeSystem.walkCamera;
+    }
+    
+    renderer.render(scene, activeCamera);
   }
   animate();
 
@@ -2311,7 +2552,7 @@ function initEditor() {
   let isAreaSelected = false;
   let isDoubleClicking = false;
   
-  // NOVO: Sistema de área expansível
+  // Sistema de área expansível - variáveis declaradas no escopo correto
   let isCreatingArea = false;
   let areaCreationStartPos = null;
   let lastClickTime = 0;
@@ -2343,13 +2584,7 @@ function initEditor() {
       }
     });
   }
-  
-  // NOVO: Sistema de seleção e movimentação de voxels (variáveis já declaradas acima)
-  // let selectedVoxels = new Set(); // REMOVIDO - já declarado na linha 644
-  // let isDraggingVoxels = false; // REMOVIDO - já declarado na linha 645
-  // let dragStartPosition = null; // REMOVIDO - já declarado na linha 646
-  // let voxelPreviewMeshes = []; // REMOVIDO - já declarado na linha 647
-  // let isInMoveMode = false; // REMOVIDO - já declarado na linha 648
+ 
   
   // Detectar se é trackpad/touchpad
   let isTrackpad = false;

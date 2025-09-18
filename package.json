@@ -8,10 +8,17 @@
     "dev": "live-server --port=3000 --host=localhost --open=/ --watch=index.html,modules/*.js,editor.js",
     "serve": "live-server --port=8080 --host=0.0.0.0"
   },
-  "keywords": ["voxel", "3d", "editor", "three.js"],
+  "keywords": [
+    "voxel",
+    "3d",
+    "editor",
+    "three.js"
+  ],
   "author": "Vertex Team",
   "license": "MIT",
-  "devDependencies": {},
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  },
   "engines": {
     "node": ">=14.0.0"
   }

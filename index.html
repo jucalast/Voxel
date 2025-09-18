@@ -824,7 +824,8 @@
       overflow-y: auto;
       overflow-x: hidden;
       flex: 1;
-      background: rgba(26, 26, 26, 0.95);
+      background: rgba(26, 26, 26, 0.8);
+      backdrop-filter: blur(5px);
     }
 
     .help-content::-webkit-scrollbar {
@@ -1345,11 +1346,6 @@
       border-radius: 2px;
     }
 
-    .room-content::-webkit-scrollbar-thumb:hover {
-      background: rgba(90, 90, 90, 0.9);
-    }
-
-    /* Seções do painel da sala */
     .room-section {
       margin-bottom: 16px;
     }
@@ -2550,160 +2546,134 @@
     .room-object-card:nth-child(3) { animation-delay: 0.3s; }
     .room-object-card:nth-child(4) { animation-delay: 0.4s; }
     .room-object-card:nth-child(5) { animation-delay: 0.5s; }
-    .room-object-card:nth-child(6) { animation-delay: 0.6s; }
-    .room-object-card:nth-child(7) { animation-delay: 0.7s; }
-    .room-object-card:nth-child(8) { animation-delay: 0.8s; }
 
-    /* ===== ESTILOS PARA RESPONSIVIDADE ===== */
-    @media (max-width: 768px) {
-      #room-panel {
-        width: 280px;
-        top: 70px;
-        right: 10px;
-        max-height: calc(100vh - 80px);
-      }
-
-      .room-header {
-        padding: 12px 16px;
-      }
-
-      .room-content {
-        padding: 12px 16px;
-      }
-
-      .input-group-label {
-        padding: 0 6px;
-        font-size: 11px;
-      }
-
-      .transform-input-new {
-        padding: 10px 8px;
-        font-size: 16px; /* Melhor para toque */
-      }
-
-      .material-slider-container {
-        flex-direction: column;
-        gap: 8px;
-        align-items: stretch;
-      }
-
-      .material-value {
-        text-align: center;
-        padding: 4px 0;
-      }
-    }
-
-    /* Modo sala ativo */
-    body.room-mode #left-panel {
-      display: none;
-    }
-
-    body.room-mode #room-panel {
+    /* ===== ESTILOS PARA CONTROLES DO MODO CAMINHADA ===== */
+    .room-controls {
       display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
     }
 
-    body.room-mode #help-panel {
-      right: 360px;
-      top: 80px;
-      max-height: calc(100vh - 100px);
+    .room-control-btn {
+      padding: 12px 16px;
+      border: 1px solid rgba(45, 45, 45, 0.6);
+      border-radius: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-size: 13px;
+      background: rgba(42, 42, 42, 0.8);
+      backdrop-filter: blur(8px) saturate(160%);
+      -webkit-backdrop-filter: blur(8px) saturate(160%);
+      color: rgba(255, 255, 255, 0.9);
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
 
-    /* Gizmos de transformação */
-    .transform-gizmo {
+    .room-control-btn::before {
+      content: '';
       position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.08),
+        transparent
+      );
+      transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: -1;
+    }
+
+    .room-control-btn::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(
+        135deg,
+        rgba(124, 58, 237, 0.02) 0%,
+        rgba(168, 85, 247, 0.01) 50%,
+        rgba(196, 181, 253, 0.02) 100%
+      );
+      border-radius: 10px;
       pointer-events: none;
-      z-index: 50;
+      z-index: -2;
     }
 
-    .transform-gizmo .axis {
-      position: absolute;
-      width: 60px;
-      height: 4px;
-      background: currentColor;
-      transform-origin: 0 50%;
-      opacity: 0.8;
-      cursor: pointer;
-      pointer-events: auto;
+    .room-control-btn:hover {
+      background: rgba(42, 42, 42, 0.9);
+      border-color: rgba(45, 45, 45, 0.8);
+      color: rgba(255, 255, 255, 1);
+      box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+      transform: translateY(-1px) scale(1.01);
     }
 
-    .transform-gizmo .axis:hover {
-      opacity: 1;
+    .room-control-btn:hover::before {
+      left: 100%;
     }
 
-    .transform-gizmo .axis.x-axis {
-      color: #ff4444;
-      transform: rotateY(90deg);
+    .room-control-btn:active {
+      transform: translateY(0) scale(1);
+      box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.03) inset;
     }
 
-    .transform-gizmo .axis.y-axis {
-      color: #44ff44;
+    .room-control-btn.active {
+      background: rgba(124, 58, 237, 0.8);
+      border-color: rgba(124, 58, 237, 0.6);
+      color: rgba(255, 255, 255, 1);
+      box-shadow:
+        0 4px 20px rgba(124, 58, 237, 0.3),
+        0 0 0 1px rgba(124, 58, 237, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.08) inset;
     }
 
-    .transform-gizmo .axis.z-axis {
-      color: #4444ff;
-      transform: rotateX(90deg);
+    .room-control-btn.active::after {
+      background: linear-gradient(
+        135deg,
+        rgba(124, 58, 237, 0.08) 0%,
+        rgba(168, 85, 247, 0.05) 50%,
+        rgba(196, 181, 253, 0.08) 100%
+      );
     }
 
-    .transform-gizmo .handle {
-      position: absolute;
-      width: 8px;
-      height: 8px;
-      background: currentColor;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      cursor: pointer;
-      pointer-events: auto;
+    .room-control-btn.active:hover {
+      background: rgba(124, 58, 237, 0.9);
+      border-color: rgba(124, 58, 237, 0.8);
+      box-shadow:
+        0 6px 24px rgba(124, 58, 237, 0.4),
+        0 0 0 1px rgba(124, 58, 237, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
     }
 
-    .transform-gizmo .handle.x-handle {
-      color: #ff4444;
-      left: 60px;
+    .room-control-btn svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      transition: all 0.3s ease;
     }
 
-    .transform-gizmo .handle.y-handle {
-      color: #44ff44;
-      top: -60px;
+    .room-control-btn.active svg {
+      color: rgba(255, 255, 255, 1);
     }
-
-    .transform-gizmo .handle.z-handle {
-      color: #4444ff;
-      left: 60px;
-      top: -60px;
-    }
-
-    /* Animações para o painel da sala */
-    @keyframes slideInLeft {
-      from {
-        opacity: 0;
-        transform: translateX(-20px) scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0) scale(1);
-      }
-    }
-
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    /* Animações de entrada para itens da sala */
-    .room-object-item {
-      animation: fadeInUp 0.3s ease-out both;
-    }
-
-    .room-object-item:nth-child(1) { animation-delay: 0.1s; }
-    .room-object-item:nth-child(2) { animation-delay: 0.2s; }
-    .room-object-item:nth-child(3) { animation-delay: 0.3s; }
-    .room-object-item:nth-child(4) { animation-delay: 0.4s; }
-    .room-object-item:nth-child(5) { animation-delay: 0.5s; }
   </style>
 </head>
 <body>
@@ -3054,6 +3024,12 @@
         </svg>
       </div>
       
+      <div class="icon-btn" id="cameraModeBtn" data-tooltip="Modo Câmera (WASD)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14.828 14.828a4 4 0 0 1-5.656 0M9 10h1.586a1 1 0 0 1 .707.293l.707.707A1 1 0 0 0 13.414 11H15m-6 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
+        </svg>
+      </div>
+      
       <!-- Contador de Voxels na parte inferior -->
       <div id="voxel-counter-icon" data-tooltip="Voxel Count">
         <div id="voxelCount">0</div>
@@ -3118,12 +3094,14 @@
       import('./modules/colorSystem.js'),
       import('./modules/referenceSystem.js'),
       import('./modules/mouseSystem.js'),
-      import('./modules/roomMode.js')
-    ]).then(([colorModule, referenceModule, mouseModule, roomModule]) => {
+      import('./modules/roomMode.js'),
+      import('./modules/walkBuildMode.js')
+    ]).then(([colorModule, referenceModule, mouseModule, roomModule, walkBuildModule]) => {
       window.ColorSystem = colorModule.ColorSystem;
       window.ReferenceImageSystem = referenceModule.ReferenceImageSystem;
       window.MouseInteractionSystem = mouseModule.MouseInteractionSystem;
       window.RoomModeSystem = roomModule.RoomModeSystem;
+      window.WalkBuildModeSystem = walkBuildModule.WalkBuildModeSystem;
       
       // Carregar o script principal após módulos estarem prontos
       const script = document.createElement('script');

@@ -1,38 +1,33 @@
 // =====================================================================
 // MÓDULO ROOM MODE SYSTEM
 // =====================================================================
-//
-// Este módulo implementa o sistema de "Modo Sala Ambiente" para o editor voxel.
-// Permite carregar objetos voxel exportados e posicioná-los em um ambiente 3D.
+// Sistema de caminhada e construção estilo Minecraft para o modo sala
 //
 // FUNCIONALIDADES:
-// - Carregamento de arquivos .html e .json exportados do editor
-// - Posicionamento e transformação de objetos (posição, rotação, escala)
-// - Interface visual para gerenciar objetos na sala
-// - Geometria da sala (chão e paredes)
-// - Sistema de gizmos para manipulação visual
-// - Salvamento e carregamento de configurações da sala
-//
-// USO:
-// 1. Importar o módulo: import { RoomModeSystem } from './modules/roomMode.js'
-// 2. Criar instância: const roomSystem = new RoomModeSystem(scene, camera, controls, updateCursor)
-// 3. Configurar variáveis: roomSystem.setEditorVars(distance, angleX, angleY)
-// 4. O sistema inicializa automaticamente os event listeners
+// - Câmera em primeira pessoa com altura de 2 voxels
+// - Controles WASD para movimento
+// - Mouse para olhar ao redor
+// - Clique esquerdo: colocar voxel
+// - Clique direito: remover voxel
+// - Sistema de colisão básica com paredes e chão
 //
 // DEPENDÊNCIAS:
-// - Three.js (para renderização 3D)
-// - Elementos DOM específicos (roomModeBtn, room-panel, etc.)
+// - Three.js (para câmera e raycasting)
+// - Sistema de voxels do editor
 //
-// ARQUITETURA:
-// - Classe principal: RoomModeSystem
-// - Classe auxiliar: RoomObject (para gerenciar objetos individuais)
-// - Métodos principais: toggleRoomMode(), loadRoomObject(), saveRoom()
+// USO:
+// 1. Importar: import { RoomModeSystem } from './modules/roomMode.js'
+// 2. Criar instância: const roomSystem = new RoomModeSystem(scene, camera, controls, roomModeSystem)
+// 3. Ativar: roomSystem.enterWalkMode()
+// 4. Desativar: roomSystem.exitWalkMode()
 //
 // =====================================================================
 
 // =====================================================================
 // SISTEMA DE MODO SALA AMBIENTE
 // =====================================================================
+
+import { WalkBuildModeSystem } from './walkBuildMode.js';
 
 export class RoomModeSystem {
   constructor(scene, camera, controls, updateCursor, renderer = null) {
@@ -49,28 +44,21 @@ export class RoomModeSystem {
     this.roomFloor = null;
     this.roomWalls = [];
 
-    // Propriedades para movimento
-    this.isWalkingMode = false;
-    this.moveSpeed = 0.15; // Velocidade mais realista para caminhar
-    this.mouseSensitivity = 0.002;
-    this.keys = {};
-    this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
-    this.PI_2 = Math.PI / 2;
-    this.minPolarAngle = 0;
-    this.maxPolarAngle = Math.PI;
-    this.walkModeBtn = null;
+    // Sistema de caminhada e construção
+    this.walkBuildModeSystem = null;
 
     // Elementos DOM do modo sala
     this.roomModeBtn = document.getElementById('roomModeBtn');
     this.roomPanel = document.getElementById('room-panel');
     this.roomLoadInput = document.getElementById('roomLoadInput');
     this.roomLoadBtn = document.getElementById('roomLoadBtn');
+
+    // Inicializar sistema de caminhada e construção
+    this.initWalkBuildSystem();
     this.roomObjectsList = document.getElementById('roomObjectsList');
     this.roomBackBtn = document.getElementById('roomBackBtn');
     this.roomSaveBtn = document.getElementById('roomSaveBtn');
     this.roomClearBtn = document.getElementById('roomClearBtn');
-    this.roomWalkBtn = document.getElementById('roomWalkBtn');
-    console.log('🚶 Botão caminhar encontrado:', !!this.roomWalkBtn);
 
     // Referências para elementos do editor
     this.leftPanel = document.getElementById('left-panel');
@@ -80,16 +68,73 @@ export class RoomModeSystem {
     this.angleX = null;
     this.angleY = null;
 
-    this.init();
+    // Sistema de caminhada e construção
+    this.walkBuildSystem = new WalkBuildModeSystem(this.scene, this.camera, this.controls, this);
+
+    this.initWalkBuildSystem();
+  }
+
+  initWalkBuildSystem() {
+    // Criar instância do sistema de caminhada e construção
+    if (window.WalkBuildModeSystem) {
+      // Passar as funções do editor para o sistema de caminhada
+      const editorFunctions = {
+        addVoxel: (x, y, z, color, saveHistory = true) => {
+          // Chamar a função addVoxel do editor através do window
+          if (window.addVoxel) {
+            return window.addVoxel(x, y, z, color, saveHistory);
+          }
+          console.warn('⚠️ addVoxel não encontrado no escopo global');
+        },
+        removeVoxel: (mesh, saveHistory = true) => {
+          // Chamar a função removeVoxel do editor através do window
+          if (window.removeVoxel) {
+            return window.removeVoxel(mesh, saveHistory);
+          }
+          console.warn('⚠️ removeVoxel não encontrado no escopo global');
+        },
+        saveState: () => {
+          // Chamar a função saveState do editor através do window
+          if (window.saveState) {
+            return window.saveState();
+          }
+          console.warn('⚠️ saveState não encontrado no escopo global');
+        },
+        getSelectedColor: () => {
+          // Chamar a função getSelectedColor através do sistema de cores
+          if (window.colorSystem && window.colorSystem.getSelectedColor) {
+            return window.colorSystem.getSelectedColor();
+          }
+          console.warn('⚠️ getSelectedColor não encontrado');
+          return '#ff0000'; // Cor padrão
+        },
+        getVoxels: () => {
+          // Retornar o array de voxels do editor
+          if (window.voxels) {
+            return window.voxels;
+          }
+          console.warn('⚠️ Array de voxels não encontrado no escopo global');
+          return [];
+        }
+      };
+
+      this.walkBuildModeSystem = new window.WalkBuildModeSystem(
+        this.scene,
+        this.camera,
+        this.controls,
+        this,
+        editorFunctions
+      );
+      console.log('✅ Sistema de caminhada e construção inicializado com funções do editor');
+    } else {
+      console.warn('⚠️ WalkBuildModeSystem não encontrado. Sistema de caminhada não estará disponível.');
+    }
   }
 
   init() {
     // Event listeners para o modo sala
     this.roomModeBtn.addEventListener('click', () => this.toggleRoomMode());
     this.roomBackBtn.addEventListener('click', () => this.toggleRoomMode());
-    this.roomWalkBtn.addEventListener('click', () => {
-      this.toggleWalkingMode();
-    });
     this.roomLoadBtn.addEventListener('click', () => this.roomLoadInput.click());
     this.roomLoadInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
@@ -105,451 +150,7 @@ export class RoomModeSystem {
 
     this.roomSaveBtn.addEventListener('click', () => this.saveRoom());
 
-    // Inicializar controles de movimento
-    this.initMovementControls();
-  }
-
-  // Inicializar controles de movimento
-  initMovementControls() {
-    // Event listeners para teclado
-    document.addEventListener('keydown', (e) => this.onKeyDown(e));
-    document.addEventListener('keyup', (e) => this.onKeyUp(e));
-
-    // Event listeners para mouse
-    document.addEventListener('mousedown', (e) => this.onMouseDown(e));
-    document.addEventListener('mouseup', (e) => this.onMouseUp(e));
-    document.addEventListener('mousemove', (e) => this.onMouseMove(e));
-
-    // Prevenir contexto menu do botão direito
-    document.addEventListener('contextmenu', (e) => {
-      if (this.isWalkingMode) {
-        e.preventDefault();
-      }
-    });
-
-    // Pointer lock para mouse look
-    document.addEventListener('pointerlockchange', () => this.onPointerLockChange());
-    document.addEventListener('pointerlockerror', () => this.onPointerLockError());
-  }
-
-  // Métodos de controle de movimento
-  onKeyDown(event) {
-    if (!this.isWalkingMode) return;
-
-    this.keys[event.code] = true;
-
-    // ESC para sair do modo caminhar
-    if (event.code === 'Escape') {
-      this.exitWalkingMode();
-      event.preventDefault();
-      return;
-    }
-
-    // Prevenir comportamento padrão para teclas de movimento
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft'].includes(event.code)) {
-      event.preventDefault();
-    }
-  }
-
-  onKeyUp(event) {
-    this.keys[event.code] = false;
-  }
-
-  onMouseDown(event) {
-    if (!this.isRoomMode) return;
-
-    // Botão direito do mouse para ativar/desativar modo caminhar
-    if (event.button === 2) {
-      event.preventDefault();
-      this.toggleWalkingMode();
-    }
-  }
-
-  onMouseUp(event) {
-    // Implementação futura se necessário
-  }
-
-  onMouseMove(event) {
-    if (!this.isWalkingMode) return;
-
-    // Usar movimento relativo do mouse para rotação (sem pointer lock)
-    const movementX = event.movementX || 0;
-    const movementY = event.movementY || 0;
-
-    // Aplicar sensibilidade do mouse
-    const deltaX = movementX * this.mouseSensitivity;
-    const deltaY = movementY * this.mouseSensitivity;
-
-    this.euler.setFromQuaternion(this.camera.quaternion);
-
-    // Atualizar rotação horizontal (yaw)
-    this.euler.y -= deltaX;
-
-    // Atualizar rotação vertical (pitch) com limites
-    this.euler.x -= deltaY;
-    this.euler.x = Math.max(-this.PI_2 + 0.1, Math.min(this.PI_2 - 0.1, this.euler.x));
-
-    this.camera.quaternion.setFromEuler(this.euler);
-  }
-
-  onPointerLockChange() {
-    const wasLocked = this.isPointerLocked();
-
-    if (wasLocked && !this.isWalkingMode) {
-      // Pointer lock foi ativado, entrar no modo caminhar
-      this.isWalkingMode = true;
-      this.updateWalkingModeUI();
-      console.log('🚶 Modo caminhar ativado via pointer lock');
-    } else if (!wasLocked && this.isWalkingMode) {
-      // Pointer lock foi desativado, sair do modo caminhar
-      this.isWalkingMode = false;
-      this.updateWalkingModeUI();
-      console.log('🚶 Modo caminhar desativado via pointer lock');
-    }
-  }
-
-  onPointerLockError() {
-    console.warn('Erro ao ativar pointer lock para modo caminhar');
-    this.isWalkingMode = false;
-    this.updateWalkingModeUI();
-  }
-
-  isPointerLocked() {
-    return document.pointerLockElement === document.body ||
-           (this.renderer && document.pointerLockElement === this.renderer.domElement);
-  }
-
-  toggleWalkingMode() {
-    if (this.isWalkingMode) {
-      this.exitWalkingMode();
-    } else {
-      this.enterWalkingMode();
-    }
-  }
-
-  enterWalkingMode() {
-    if (!this.isRoomMode) {
-      console.warn('❌ Não é possível ativar modo caminhar fora do modo sala');
-      return;
-    }
-
-    // Salvar posição atual dos controles
-    this.savedControlsPosition = {
-      x: this.controls.target.x,
-      y: this.controls.target.y,
-      z: this.controls.target.z
-    };
-
-    // Salvar posição e rotação da câmera
-    this.savedCameraPosition = this.camera.position.clone();
-    this.savedCameraQuaternion = this.camera.quaternion.clone();
-
-    // Salvar FOV atual da câmera
-    this.savedCameraFov = this.camera.fov;
-
-    // Desabilitar controles orbitais
-    this.controls.enabled = false;
-
-    // Posicionar câmera dentro da sala com altura de 2 blocos
-    this.camera.position.set(0, 2, 0); // Centro da sala, altura de 2 blocos
-    this.camera.lookAt(0, 2, -5); // Olhando para frente (parede frontal)
-
-    // Ajustar FOV para visão em primeira pessoa mais imersiva
-    this.camera.fov = 75;
-    this.camera.updateProjectionMatrix();
-
-    // Resetar rotação do mouse
-    this.euler.set(0, 0, 0, 'YXZ');
-
-    // Modo caminhar ativado
-    this.isWalkingMode = true;
-    this.updateWalkingModeUI();
-
-    // Focar no canvas para capturar eventos de teclado
-    if (this.renderer && this.renderer.domElement) {
-      this.renderer.domElement.focus();
-    }
-  }
-
-  exitWalkingMode() {
-    // Liberar pointer lock
-    if (this.isPointerLocked()) {
-      document.exitPointerLock();
-    }
-
-    // Reabilitar controles orbitais
-    this.controls.enabled = true;
-
-    // Restaurar posição dos controles se necessário
-    if (this.savedControlsPosition) {
-      this.controls.target.copy(this.savedControlsPosition);
-    }
-
-    // Restaurar posição e rotação da câmera
-    if (this.savedCameraPosition) {
-      this.camera.position.copy(this.savedCameraPosition);
-    }
-    if (this.savedCameraQuaternion) {
-      this.camera.quaternion.copy(this.savedCameraQuaternion);
-    }
-
-    // Restaurar FOV da câmera
-    if (this.savedCameraFov) {
-      this.camera.fov = this.savedCameraFov;
-      this.camera.updateProjectionMatrix();
-    }
-
-    this.isWalkingMode = false;
-    this.updateWalkingModeUI();
-  }
-
-  updateWalkingModeUI() {
-    // Atualizar cursor
-    if (this.isWalkingMode) {
-      document.body.style.cursor = 'none'; // Esconder cursor padrão
-      this.showWalkingCursor();
-    } else {
-      document.body.style.cursor = '';
-      this.hideWalkingCursor();
-    }
-
-    // Atualizar indicador visual
-    this.updateWalkingIndicator();
-  }
-
-  showWalkingCursor() {
-    let cursor = document.getElementById('walking-cursor');
-    if (!cursor) {
-      cursor = document.createElement('div');
-      cursor.id = 'walking-cursor';
-      cursor.style.cssText = `
-        position: fixed;
-        width: 20px;
-        height: 20px;
-        background: radial-gradient(circle, rgba(16, 185, 129, 0.8) 0%, rgba(16, 185, 129, 0.4) 50%, transparent 70%);
-        border: 2px solid #10b981;
-        border-radius: 50%;
-        pointer-events: none;
-        z-index: 9999;
-        transform: translate(-50%, -50%);
-        transition: all 0.1s ease-out;
-        box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
-      `;
-      document.body.appendChild(cursor);
-    }
-
-    // Atualizar posição do cursor customizado
-    const updateCursorPosition = (e) => {
-      if (this.isWalkingMode && cursor) {
-        cursor.style.left = e.clientX + 'px';
-        cursor.style.top = e.clientY + 'px';
-      }
-    };
-
-    document.addEventListener('mousemove', updateCursorPosition);
-    this.cursorUpdateHandler = updateCursorPosition;
-
-    cursor.style.display = 'block';
-  }
-
-  hideWalkingCursor() {
-    const cursor = document.getElementById('walking-cursor');
-    if (cursor) {
-      cursor.style.display = 'none';
-    }
-
-    if (this.cursorUpdateHandler) {
-      document.removeEventListener('mousemove', this.cursorUpdateHandler);
-      this.cursorUpdateHandler = null;
-    }
-  }
-
-  updateWalkingIndicator() {
-    // Implementar indicador visual do modo caminhar
-    let indicator = document.getElementById('walking-mode-indicator');
-
-    if (this.isWalkingMode) {
-      if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'walking-mode-indicator';
-        indicator.innerHTML = `
-          <div style="
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: linear-gradient(135deg, rgba(26, 26, 26, 0.95), rgba(42, 42, 42, 0.95));
-            backdrop-filter: blur(15px);
-            border: 2px solid rgba(124, 58, 237, 0.6);
-            border-radius: 16px;
-            padding: 16px 24px;
-            color: #ffffff;
-            font-size: 14px;
-            font-weight: 500;
-            z-index: 1000;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
-            text-align: center;
-            animation: fadeInUp 0.3s ease-out;
-            max-width: 400px;
-          ">
-            <div style="margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-              <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite;"></div>
-              <span style="font-size: 16px; font-weight: 600; color: #10b981;">🚶 Modo Caminhar Ativo</span>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-              <div style="background: rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
-                <div style="font-size: 11px; color: #fbbf24; margin-bottom: 4px;">MOVIMENTO</div>
-                <div style="font-size: 10px; color: #d1d5db;">WASD ou ↑↓←→</div>
-              </div>
-              <div style="background: rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
-                <div style="font-size: 11px; color: #06b6d4; margin-bottom: 4px;">VISÃO</div>
-                <div style="font-size: 10px; color: #d1d5db;">Mouse para olhar</div>
-              </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px;">
-              <div style="background: rgba(255, 255, 255, 0.05); padding: 6px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
-                <div style="font-size: 9px; color: #10b981;">SUBIR</div>
-                <div style="font-size: 10px; color: #d1d5db; font-weight: 600;">ESPAÇO</div>
-              </div>
-              <div style="background: rgba(255, 255, 255, 0.05); padding: 6px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
-                <div style="font-size: 9px; color: #ef4444;">DESCER</div>
-                <div style="font-size: 10px; color: #d1d5db; font-weight: 600;">SHIFT</div>
-              </div>
-              <div style="background: rgba(255, 255, 255, 0.05); padding: 6px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
-                <div style="font-size: 9px; color: #f59e0b;">SAIR</div>
-                <div style="font-size: 10px; color: #d1d5db; font-weight: 600;">ESC</div>
-              </div>
-            </div>
-
-            <div style="font-size: 11px; opacity: 0.7; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 8px;">
-              Altura: 2 blocos • Colisão ativa • Dentro da sala
-            </div>
-          </div>
-
-          <style>
-            @keyframes fadeInUp {
-              from {
-                opacity: 0;
-                transform: translateX(-50%) translateY(-10px);
-              }
-              to {
-                opacity: 1;
-                transform: translateX(-50%) translateY(0);
-              }
-            }
-
-            @keyframes pulse {
-              0%, 100% { opacity: 1; }
-              50% { opacity: 0.5; }
-            }
-          </style>
-        `;
-        document.body.appendChild(indicator);
-      }
-      // Garantir que o indicador esteja visível
-      if (indicator) {
-        indicator.style.display = 'block';
-      }
-    } else {
-      if (indicator) {
-        indicator.style.display = 'none';
-      }
-    }
-  }
-
-  updateMovement() {
-    if (!this.isWalkingMode) return;
-
-    const direction = new THREE.Vector3();
-    const right = new THREE.Vector3();
-    const forward = new THREE.Vector3();
-
-    // Obter direções baseadas na rotação da câmera
-    this.camera.getWorldDirection(forward);
-    forward.y = 0; // Manter movimento no plano horizontal
-    forward.normalize();
-
-    right.crossVectors(forward, this.camera.up).normalize();
-
-    // Calcular movimento baseado nas teclas pressionadas
-    if (this.keys['KeyW'] || this.keys['ArrowUp']) {
-      direction.add(forward);
-    }
-    if (this.keys['KeyS'] || this.keys['ArrowDown']) {
-      direction.sub(forward);
-    }
-    if (this.keys['KeyA'] || this.keys['ArrowLeft']) {
-      direction.sub(right);
-    }
-    if (this.keys['KeyD'] || this.keys['ArrowRight']) {
-      direction.add(right);
-    }
-
-    // Movimento vertical
-    if (this.keys['Space']) {
-      direction.y += 1;
-    }
-    if (this.keys['ShiftLeft']) {
-      direction.y -= 1;
-    }
-
-    // Aplicar movimento se houver direção
-    if (direction.length() > 0) {
-      direction.normalize();
-      direction.multiplyScalar(this.moveSpeed);
-
-      // Verificar colisões antes de mover
-      const newPosition = this.camera.position.clone().add(direction);
-      if (this.checkCollision(newPosition)) {
-        this.camera.position.copy(newPosition);
-      }
-    }
-  }
-
-  checkCollision(position) {
-    // Limites da sala (considerando paredes de 0.2 de espessura)
-    const roomSize = 9.8; // 10 - 0.2 (parede tem 0.2 de espessura)
-    const wallThickness = 0.2;
-
-    // Altura do jogador (de 1.8 a 2.2 unidades)
-    const playerHeight = 2.0;
-    const playerBottom = position.y - 0.9; // Base do jogador
-    const playerTop = position.y + 0.1; // Topo do jogador
-
-    // Verificar colisão com paredes (considerando altura)
-    if (Math.abs(position.x) > roomSize ||
-        Math.abs(position.z) > roomSize) {
-      return false; // Colisão detectada com parede
-    }
-
-    // Verificar se o jogador está no chão (não pode passar através do chão)
-    if (playerBottom < 0) {
-      return false; // Colisão com o chão
-    }
-
-    // Verificar se o jogador está no teto (não pode passar através do teto)
-    if (playerTop > 10) {
-      return false; // Colisão com o teto
-    }
-
-    // Verificar colisão com objetos (considerando altura do jogador)
-    for (const obj of this.roomObjects) {
-      const objBox = new THREE.Box3().setFromObject(obj.meshGroup);
-
-      // Criar bounding box do jogador considerando sua altura
-      const playerBox = new THREE.Box3(
-        new THREE.Vector3(position.x - 0.4, playerBottom, position.z - 0.4),
-        new THREE.Vector3(position.x + 0.4, playerTop, position.z + 0.4)
-      );
-
-      if (objBox.intersectsBox(playerBox)) {
-        return false; // Colisão com objeto
-      }
-    }
-
-    return true; // Sem colisão
+   
   }
 
   // Configurar variáveis do editor
@@ -685,6 +286,23 @@ export class RoomModeSystem {
     // Mostrar elementos da sala
     this.roomPanel.style.display = 'flex';
     document.body.classList.add('room-mode');
+
+    // Criar botão do modo caminhada
+    if (this.walkBuildModeSystem && this.walkBuildModeSystem.createToggleButton) {
+      // Criar container para controles adicionais se não existir
+      let controlsContainer = this.roomPanel.querySelector('.room-controls');
+      if (!controlsContainer) {
+        controlsContainer = document.createElement('div');
+        controlsContainer.className = 'room-controls';
+        controlsContainer.style.cssText = `
+          padding: 10px;
+          border-bottom: 1px solid #e5e7eb;
+          background: #f9fafb;
+        `;
+        this.roomPanel.insertBefore(controlsContainer, this.roomPanel.firstChild);
+      }
+      this.walkBuildModeSystem.createToggleButton(controlsContainer);
+    }
 
     // Criar geometria da sala
     this.createRoomGeometry();
@@ -1266,5 +884,12 @@ export class RoomModeSystem {
     });
 
     return value;
+  }
+
+  // Método para atualizar sistemas (chamado no loop de renderização)
+  update() {
+    if (this.walkBuildModeSystem) {
+      this.walkBuildModeSystem.update();
+    }
   }
 }
