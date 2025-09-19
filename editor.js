@@ -24,7 +24,6 @@ function initEditor() {
   const canvas = document.getElementById('three-canvas');
   const colorPalette = document.getElementById('colorPalette');
   const exportBtn = document.getElementById('exportBtn');
-  const importBtn = document.getElementById('importBtn');
   const clearBtn = document.getElementById('clearBtn');
   const undoBtn = document.getElementById('undoBtn');
   const voxelCount = document.getElementById('voxelCount');
@@ -33,6 +32,7 @@ function initEditor() {
   const leftPanel = document.getElementById('left-panel');
   const iconToolbar = document.getElementById('icon-toolbar');
   
+  
   // Elementos do sistema de ajuda
   const helpButton = document.getElementById('help-button');
   const helpPanel = document.getElementById('help-panel');
@@ -40,13 +40,17 @@ function initEditor() {
 
   // Elementos da IA removidos
 
-  // Elementos da imagem de referência
+  // Inicializar sistema de upload de arquivos
+  const fileUploadSystem = new FileUploadSystem();
+  window.fileUploadSystem = fileUploadSystem;
+
+  // Elementos da imagem de referência (agora gerenciados pelo FileUploadSystem)
   const referenceUpload = document.getElementById('uploadBtn');
-  const referenceFileInput = document.getElementById('fileInput');
-  const referenceImage = null; // Não existe mais na sidebar
-  const referenceControls = null; // Não existe mais na sidebar
-  const opacityBtn = null; // Não existe mais na sidebar
-  const removeRefBtn = null; // Não existe mais na sidebar
+  const referenceImage = document.getElementById('floating-reference-image');
+  const referenceControls = document.getElementById('floating-reference-controls');
+  const opacityBtn = document.getElementById('floating-opacity-btn');
+  const removeRefBtn = document.getElementById('floating-remove-btn');
+  const floatingReferencePanel = document.getElementById('floating-reference');
 
   // Elemento do botão de modo câmera
   const cameraModeBtn = document.getElementById('cameraModeBtn');
@@ -58,10 +62,136 @@ function initEditor() {
   // Sistema de cores
   const colorSystem = new ColorSystem(colorPalette);
 
+  // Definir callbacks para o sistema de upload de arquivos
+  fileUploadSystem.setCallbacks({
+    onVoxelDataLoaded: (voxelData, filename) => {
+      console.log('🎯 onVoxelDataLoaded chamado com:', { voxelDataLength: voxelData?.length, filename });
+
+      if (!voxelData || !Array.isArray(voxelData)) {
+        alert(`Erro: Dados de voxel inválidos no arquivo "${filename}".`);
+        console.error('❌ Dados de voxel inválidos:', voxelData);
+        return;
+      }
+
+      if (voxelData.length === 0) {
+        alert(`Erro: Nenhum voxel encontrado no arquivo "${filename}".`);
+        console.warn('⚠️ Array de voxels vazio');
+        return;
+      }
+
+      console.log(`📊 Processando ${voxelData.length} voxels do arquivo "${filename}"`);
+
+      // Verificar se há voxels válidos
+      const validVoxels = voxelData.filter((voxel, index) => {
+        const isValid = typeof voxel.x === 'number' &&
+                       typeof voxel.y === 'number' &&
+                       typeof voxel.z === 'number' &&
+                       typeof voxel.color === 'string';
+
+        if (!isValid) {
+          console.warn(`⚠️ Voxel ${index} com dados inválidos:`, voxel);
+        }
+        return isValid;
+      });
+
+      if (validVoxels.length === 0) {
+        alert(`Erro: Nenhum voxel válido encontrado no arquivo "${filename}".`);
+        console.error('❌ Nenhum voxel válido encontrado');
+        return;
+      }
+
+      console.log(`✅ ${validVoxels.length} voxels válidos encontrados`);
+
+      // Perguntar confirmação ao usuário
+      const shouldLoad = confirm(`Carregar ${validVoxels.length} voxels de "${filename}"? Isso irá substituir a cena atual.`);
+
+      if (!shouldLoad) {
+        console.log('❌ Usuário cancelou o carregamento');
+        return;
+      }
+
+      try {
+        // Limpar cena atual
+        clearScene();
+        console.log('🧹 Cena limpa para novo carregamento');
+
+        // Adicionar voxels
+        let addedCount = 0;
+        validVoxels.forEach((voxel) => {
+          try {
+            addVoxel(voxel.x, voxel.y, voxel.z, voxel.color, false);
+            addedCount++;
+          } catch (error) {
+            console.error('❌ Erro ao adicionar voxel:', voxel, error);
+          }
+        });
+
+        // Salvar estado
+        saveState();
+
+        console.log(`✅ Carregamento concluído: ${addedCount} voxels adicionados de "${filename}"`);
+        console.log(`📈 Total de voxels na cena: ${voxels.length}`);
+
+        // Atualizar contador de voxels
+        updateVoxelCount();
+
+      } catch (error) {
+        console.error('❌ Erro durante o carregamento:', error);
+        alert('Erro durante o carregamento: ' + error.message);
+      }
+    },
+    onRoomObjectLoaded: (voxelData, filename) => {
+      console.log('🏠 onRoomObjectLoaded chamado com:', { voxelDataLength: voxelData?.length, filename });
+
+      if (!voxelData || !Array.isArray(voxelData)) {
+        alert(`Erro: Dados de objeto inválidos no arquivo "${filename}".`);
+        console.error('❌ Dados de objeto inválidos:', voxelData);
+        return;
+      }
+
+      if (voxelData.length === 0) {
+        alert(`Erro: Nenhum voxel encontrado no arquivo "${filename}".`);
+        console.warn('⚠️ Array de voxels vazio para objeto da sala');
+        return;
+      }
+
+      console.log(`📦 Carregando objeto da sala "${filename}" com ${voxelData.length} voxels`);
+
+      try {
+        // Verificar se estamos no modo sala
+        if (!roomModeSystem || !roomModeSystem.isRoomMode) {
+          const enterRoomMode = confirm(`Para carregar objetos da sala, você precisa estar no modo sala. Entrar no modo sala agora?`);
+          if (enterRoomMode) {
+            roomModeSystem.toggleRoomMode();
+          } else {
+            console.log('❌ Usuário cancelou entrada no modo sala');
+            return;
+          }
+        }
+
+        // Carregar objeto da sala
+        roomModeSystem.addRoomObject(voxelData, filename);
+        console.log(`✅ Objeto de sala "${filename}" carregado com sucesso!`);
+
+      } catch (error) {
+        console.error('❌ Erro ao carregar objeto da sala:', error);
+        alert('Erro ao carregar objeto da sala: ' + error.message);
+      }
+    },
+    onReferenceImageLoaded: (imageDataUrl, filename) => {
+      referenceSystem.setImage(imageDataUrl);
+      console.log(`✅ Imagem de referência "${filename}" carregada.`);
+    },
+    onError: (message) => {
+      alert('Erro no upload: ' + message);
+      console.error('Erro no FileUploadSystem:', message);
+    }
+  });
+
   // Sistema de imagem de referência
   const referenceSystem = new ReferenceImageSystem(
     referenceUpload, 
-    referenceFileInput, 
+    fileUploadSystem, // fileInput is now managed by FileUploadSystem
     referenceImage, 
     referenceControls, 
     opacityBtn, 
@@ -151,6 +281,7 @@ function initEditor() {
   directionalLight.shadow.camera.top = 30;
   directionalLight.shadow.camera.bottom = -30;
   directionalLight.shadow.bias = -0.0001;
+  directionalLight.shadow.radius = 5; // Aumenta o borrão das sombras para um efeito mais suave
   scene.add(directionalLight);
   scene.add(directionalLight.target);
 
@@ -163,7 +294,7 @@ function initEditor() {
   const backLight = new THREE.DirectionalLight(0xff8080, 0.2);
   backLight.position.set(0, 10, -15);
   scene.add(backLight);
-
+  directionalLight.shadow.radius = 8;  // Aumenta o borrão das sombras (valores maiores = mais suave)
   // Luz superior para iluminação uniforme
   const topLight = new THREE.DirectionalLight(0xffffff, 0.4);
   topLight.position.set(0, 20, 0);
@@ -188,17 +319,7 @@ function initEditor() {
 
   // Sistema de modos de câmera
   let cameraMode = 'orbit'; // 'orbit' ou 'walk'
-  let walkSpeed = 0.5;
-  let mouseSensitivity = 0.002;
-  let isPointerLocked = false;
-  let walkDirection = new THREE.Vector3();
-  let walkVelocity = new THREE.Vector3();
-  let walkKeys = { w: false, a: false, s: false, d: false, q: false, e: false };
-
-  // Criar câmera de caminhada (perspectiva)
-  const walkCamera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-  walkCamera.position.set(10, 5, 10);
-  walkCamera.lookAt(0, 0, 0);
+  let walkBuildModeSystem;
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -215,207 +336,28 @@ function initEditor() {
 
   // Função para alternar modo de câmera
   function toggleCameraMode() {
-    cameraMode = cameraMode === 'orbit' ? 'walk' : 'orbit';
-
-    if (cameraMode === 'walk') {
-      // Entrar no modo caminhada
-      console.log('🚶 Modo caminhada ativado');
-
-      // Copiar posição da câmera orbit para a câmera de caminhada
-      walkCamera.position.copy(camera.position);
-      walkCamera.rotation.copy(camera.rotation);
-
-      // Desabilitar controles orbit
-      controls.enabled = false;
-
-      // Esconder grade se estiver muito próxima (pode atrapalhar)
-      if (gridHelper) {
-        gridHelper.visible = false;
-      }
-
-      // Adicionar event listeners para caminhada
-      setupWalkControls();
-
-      // Atualizar cursor
-      canvas.style.cursor = 'none';
-
-    } else {
-      // Voltar para modo orbit
+    if (walkBuildModeSystem && walkBuildModeSystem.isActive) {
+      walkBuildModeSystem.exitWalkMode();
+      cameraMode = 'orbit';
       console.log('🎥 Modo órbita ativado');
-
-      // Copiar posição da câmera de caminhada para a câmera orbit
-      camera.position.copy(walkCamera.position);
-      camera.lookAt(0, 0, 0);
-
-      // Habilitar controles orbit
       controls.enabled = true;
-      controls.enableRotate = true;
-      controls.enablePan = true;
-      controls.enableZoom = true;
-
-      // Mostrar grade novamente
-      if (gridHelper) {
-        gridHelper.visible = true;
-      }
-
-      // Remover event listeners de caminhada
-      removeWalkControls();
-
-      // Liberar pointer lock se estiver ativo
-      if (document.pointerLockElement === canvas) {
-        document.exitPointerLock();
-      }
-
-      // Restaurar cursor
-      canvas.style.cursor = 'default';
-    }
-
-    updateCursor();
-  }
-
-  // Configurar controles de caminhada
-  function setupWalkControls() {
-    // Event listeners para teclado
-    document.addEventListener('keydown', handleWalkKeyDown);
-    document.addEventListener('keyup', handleWalkKeyUp);
-
-    // Event listener para mouse (movimento de olhar)
-    document.addEventListener('mousemove', handleWalkMouseMove);
-
-    // Event listener para clique (ativar pointer lock)
-    canvas.addEventListener('click', requestPointerLock);
-
-    // Event listener para pointer lock
-    document.addEventListener('pointerlockchange', handlePointerLockChange);
-  }
-
-  // Remover controles de caminhada
-  function removeWalkControls() {
-    document.removeEventListener('keydown', handleWalkKeyDown);
-    document.removeEventListener('keyup', handleWalkKeyUp);
-    document.removeEventListener('mousemove', handleWalkMouseMove);
-    canvas.removeEventListener('click', requestPointerLock);
-    document.removeEventListener('pointerlockchange', handlePointerLockChange);
-  }
-
-  // Handlers para caminhada
-  function handleWalkKeyDown(event) {
-    if (cameraMode !== 'walk') return;
-
-    switch(event.code) {
-      case 'KeyW':
-        walkKeys.w = true;
-        break;
-      case 'KeyA':
-        walkKeys.a = true;
-        break;
-      case 'KeyS':
-        walkKeys.s = true;
-        break;
-      case 'KeyD':
-        walkKeys.d = true;
-        break;
-      case 'KeyQ':
-        walkKeys.q = true;
-        break;
-      case 'KeyE':
-        walkKeys.e = true;
-        break;
-      case 'ShiftLeft':
-        walkSpeed = 1.0; // Correr
-        break;
-      case 'Escape':
-        toggleCameraMode(); // Voltar para modo orbit
-        break;
-    }
-  }
-
-  function handleWalkKeyUp(event) {
-    if (cameraMode !== 'walk') return;
-
-    switch(event.code) {
-      case 'KeyW':
-        walkKeys.w = false;
-        break;
-      case 'KeyA':
-        walkKeys.a = false;
-        break;
-      case 'KeyS':
-        walkKeys.s = false;
-        break;
-      case 'KeyD':
-        walkKeys.d = false;
-        break;
-      case 'KeyQ':
-        walkKeys.q = false;
-        break;
-      case 'KeyE':
-        walkKeys.e = false;
-        break;
-      case 'ShiftLeft':
-        walkSpeed = 0.5; // Voltar velocidade normal
-        break;
-    }
-  }
-
-  function handleWalkMouseMove(event) {
-    if (cameraMode !== 'walk' || !isPointerLocked) return;
-
-    const movementX = event.movementX || 0;
-    const movementY = event.movementY || 0;
-
-    // Rotacionar câmera baseado no movimento do mouse
-    walkCamera.rotation.y -= movementX * mouseSensitivity;
-    walkCamera.rotation.x -= movementY * mouseSensitivity;
-
-    // Limitar rotação vertical para evitar virar de cabeça para baixo
-    walkCamera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, walkCamera.rotation.x));
-  }
-
-  function requestPointerLock() {
-    if (cameraMode === 'walk' && !isPointerLocked) {
-      canvas.requestPointerLock();
-    }
-  }
-
-  function handlePointerLockChange() {
-    isPointerLocked = (document.pointerLockElement === canvas);
-    if (isPointerLocked) {
-      console.log('🔒 Pointer lock ativado - mova o mouse para olhar ao redor');
+      updateCursor();
     } else {
-      console.log('🔓 Pointer lock desativado');
-    }
-  }
-
-  // Atualizar movimento da câmera de caminhada
-  function updateWalkMovement() {
-    if (cameraMode !== 'walk') return;
-
-    // Calcular direção do movimento
-    walkDirection.set(0, 0, 0);
-
-    if (walkKeys.w) walkDirection.z -= 1;
-    if (walkKeys.s) walkDirection.z += 1;
-    if (walkKeys.a) walkDirection.x -= 1;
-    if (walkKeys.d) walkDirection.x += 1;
-    if (walkKeys.q) walkDirection.y -= 1;
-    if (walkKeys.e) walkDirection.y += 1;
-
-    // Normalizar direção se houver movimento
-    if (walkDirection.length() > 0) {
-      walkDirection.normalize();
-
-      // Aplicar rotação da câmera à direção
-      walkDirection.applyEuler(new THREE.Euler(0, walkCamera.rotation.y, 0));
-
-      // Aplicar velocidade
-      walkDirection.multiplyScalar(walkSpeed);
-
-      // Atualizar posição da câmera
-      walkCamera.position.add(walkDirection);
-
-      // Manter câmera acima do chão (altura mínima)
-      walkCamera.position.y = Math.max(1, walkCamera.position.y);
+      if (!walkBuildModeSystem) {
+        const editorApi = {
+          addVoxel,
+          removeVoxel,
+          saveState,
+          getSelectedColor: () => colorSystem.getSelectedColor(),
+          getVoxels: () => voxels,
+          updateVoxelCount
+        };
+        walkBuildModeSystem = new WalkBuildModeSystem(scene, camera, controls, null, editorApi);
+      }
+      walkBuildModeSystem.originalCamera = camera;
+      walkBuildModeSystem.enterWalkMode();
+      cameraMode = 'walk';
+      console.log('🚶 Modo caminhada e construção ativado');
     }
   }
 
@@ -475,7 +417,9 @@ function initEditor() {
   let historyIndex = -1;
 
   function updateVoxelCount() {
-    voxelCount.textContent = voxels.length.toString();
+    if (voxelCount) {
+      voxelCount.textContent = voxels.length.toString();
+    }
   }
 
   function saveState() {
@@ -594,50 +538,75 @@ function initEditor() {
   // EVENT LISTENERS
   // =====================================================================
 
-  clearBtn.onclick = () => {
-    if (confirm('Tem certeza que deseja limpar toda a cena?')) {
-      clearScene();
-    }
-  };
+  if (clearBtn) {
+    clearBtn.onclick = () => {
+      if (confirm('Tem certeza que deseja limpar toda a cena?')) {
+        clearScene();
+      }
+    };
+  }
 
-  undoBtn.onclick = undo;
+  if (undoBtn) {
+    undoBtn.onclick = undo;
+  }
 
-  importBtn.onclick = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.html,.json';
-    input.onchange = handleFileImport;
-    input.click();
-  };
+  if (testBtn) {
+    testBtn.onclick = () => {
+      console.log('Adicionando cubo de teste...');
+      addVoxel(0, 0, 0, colorSystem.getSelectedColor());
+    };
+  }
 
-  testBtn.onclick = () => {
-    console.log('Adicionando cubo de teste...');
-    addVoxel(0, 0, 0, colorSystem.getSelectedColor());
-  };
+  // Event listeners for the new room objects sidebar
+  // REMOVED: loadRoomObjectBtn event listener
 
-  menuBtn.onclick = () => {
-    leftPanel.classList.toggle('show');
-    
-    // Mover barra de ferramentas baseado no estado do painel
-    if (leftPanel.classList.contains('show')) {
-      // Painel aberto: mover barra para a direita do painel
-      iconToolbar.style.left = '345px'; // 55px (nova posição do painel) + 300px (largura) + 20px (espaço para barra maior)
-    } else {
-      // Painel fechado: voltar barra para posição original
-      iconToolbar.style.left = '10px';
-    }
-  };
+  // REMOVED: Event listener for voxel upload button (moved to sidebar)
+
+  // REMOVED: roomObjectsSidebarCloseBtn event listener
+
+  
+
+  
+
+  if (menuBtn) {
+    menuBtn.onclick = () => {
+      // REMOVED: Close room objects sidebar if open
+
+      // Verificar se estamos no modo sala
+      if (roomModeSystem && roomModeSystem.isRoomMode) {
+        // No modo sala, mostrar o painel esquerdo (color sidebar)
+        leftPanel.classList.toggle('show');
+        console.log('🎨 Color sidebar toggled in room mode');
+      } else {
+        // Modo normal do editor
+        leftPanel.classList.toggle('show');
+      }
+      
+      // Mover barra de ferramentas baseado no estado do painel
+      if (leftPanel.classList.contains('show')) {
+        // Painel aberto: mover barra para a direita do painel
+        iconToolbar.style.left = '345px'; // 55px (nova posição do painel) + 300px (largura) + 20px (espaço para barra maior)
+      } else {
+        // Painel fechado: voltar barra para posição original
+        iconToolbar.style.left = '10px';
+      }
+    };
+  }
 
   // Sistema de ajuda
-  helpButton.onclick = () => {
-    helpPanel.classList.toggle('show');
-    console.log('📚 Painel de ajuda alternado');
-  };
+  if (helpButton) {
+    helpButton.onclick = () => {
+      helpPanel.classList.toggle('show');
+      console.log('📚 Painel de ajuda alternado');
+    };
+  }
 
-  helpClose.onclick = () => {
-    helpPanel.classList.remove('show');
-    console.log('📚 Painel de ajuda fechado');
-  };
+  if (helpClose) {
+    helpClose.onclick = () => {
+      helpPanel.classList.remove('show');
+      console.log('📚 Painel de ajuda fechado');
+    };
+  }
 
   // Fechar painel de ajuda ao clicar fora
   document.addEventListener('click', (e) => {
@@ -657,15 +626,19 @@ function initEditor() {
   });
 
   // Sistema de ajuda
-  helpButton.onclick = () => {
-    helpPanel.classList.toggle('show');
-    console.log('📚 Painel de ajuda alternado');
-  };
+  if (helpButton) {
+    helpButton.onclick = () => {
+      helpPanel.classList.toggle('show');
+      console.log('📚 Painel de ajuda alternado');
+    };
+  }
 
-  helpClose.onclick = () => {
-    helpPanel.classList.remove('show');
-    console.log('📚 Painel de ajuda fechado');
-  };
+  if (helpClose) {
+    helpClose.onclick = () => {
+      helpPanel.classList.remove('show');
+      console.log('📚 Painel de ajuda fechado');
+    };
+  }
 
   // Fechar painel de ajuda ao clicar fora
   document.addEventListener('click', (e) => {
@@ -1087,6 +1060,17 @@ function initEditor() {
         clearAreaSelection();
         console.log('📦 Área cancelada');
         updateCursor();
+      }
+    }
+    
+    // Atalho para alternar modo sala (R)
+    if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+      if (roomModeSystem) {
+        roomModeSystem.toggleRoomMode();
+        console.log('🏠 Modo sala alternado via atalho R');
+      } else {
+        console.warn('⚠️ Sistema de modo sala não disponível');
       }
     }
   });
@@ -1757,6 +1741,7 @@ function initEditor() {
                            y >= oldArea.minY && y <= oldArea.maxY &&
                            z >= oldArea.minZ && z <= oldArea.maxZ);
                            
+   
       const isInNewArea = (x >= newArea.minX && x <= newArea.maxX &&
                           y >= newArea.minY && y <= newArea.maxY &&
                           z >= newArea.minZ && z <= newArea.maxZ);
@@ -1932,7 +1917,7 @@ function initEditor() {
     voxel.userData.selectionOutline = outline;
 
     console.log('✨ Gizmo de seleção otimizado criado');
-  }
+   }
   
   function removeSelectionHighlight(voxel) {
     if (voxel.userData.selectionOutline) {
@@ -2087,7 +2072,100 @@ function initEditor() {
   // Inicializar event listeners do sistema de sala
   roomModeSystem.init();
 
+  // Obter referências ao slider de horário do dia e ao display
+  const timeOfDaySlider = document.getElementById('time-of-day-slider');
+  const timeDisplay = document.getElementById('time-display');
+
+  // Função para formatar minutos para HH:MM
+  function formatTime(minutes) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  }
+
+  // Inicializar o display de tempo com o valor inicial do slider
+  if (timeOfDaySlider && timeDisplay) {
+    timeDisplay.textContent = formatTime(parseInt(timeOfDaySlider.value));
+
+    // Adicionar event listener para o slider de horário do dia
+    timeOfDaySlider.addEventListener('input', (event) => {
+      const timeInMinutes = parseInt(event.target.value);
+      timeDisplay.textContent = formatTime(timeInMinutes);
+      roomModeSystem.updateLighting(timeInMinutes);
+    });
+  }
+
   console.log('🎭 Sistema de Modo Sala Ambiente carregado com sucesso!');
+
+  // =====================================================================
+  // CONEXÃO DA BARRA FLUTUANTE COM O SISTEMA DE CAMINHADA
+  // =====================================================================
+
+  // Função para controlar visibilidade da barra flutuante baseada no room mode
+  function updateFloatingBarVisibility() {
+    const topFloatingBar = document.getElementById('top-floating-bar');
+    if (!topFloatingBar) return;
+
+    if (roomModeSystem && roomModeSystem.isRoomMode) {
+      // Mostrar barra apenas no room mode
+      topFloatingBar.classList.add('show');
+      console.log('🎨 Barra flutuante mostrada (room mode ativo)');
+    } else {
+      // Esconder barra quando não estiver no room mode
+      topFloatingBar.classList.remove('show');
+      console.log('🎨 Barra flutuante escondida (room mode inativo)');
+    }
+  }
+
+  // Conectar botão da barra flutuante ao modo caminhada
+  const walkModeBtn = document.getElementById('walkModeBtn');
+  if (walkModeBtn) {
+    walkModeBtn.addEventListener('click', () => {
+      console.log('🚶 Botão Modo Caminhada clicado!');
+
+      // Verificar se o sistema de caminhada está disponível
+      if (roomModeSystem && roomModeSystem.walkBuildModeSystem) {
+        const walkSystem = roomModeSystem.walkBuildModeSystem;
+
+        if (walkSystem.isActive) {
+          // Está ativo, desativar
+          walkSystem.exitWalkMode();
+          walkModeBtn.classList.remove('active');
+          walkModeBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M13.5 6.5V12m0 0v5.5m0-5.5h-7m7 0h7"/>
+              <path d="M9.5 12H7.5m2 0v2.5m0-2.5v-2.5"/>
+              <path d="M16.5 12h2m-2 0v2.5m0-2.5v-2.5"/>
+              <circle cx="12" cy="7" r="1"/>
+            </svg>
+            <span>Modo Caminhada</span>
+          `;
+          console.log('🚶 Modo caminhada desativado via botão');
+        } else {
+          // Não está ativo, ativar
+          walkSystem.enterWalkMode();
+          walkModeBtn.classList.add('active');
+          walkModeBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M13.5 6.5V12m0 0v5.5m0-5.5h-7m7 0h7"/>
+              <path d="M9.5 12H7.5m2 0v2.5m0-2.5v-2.5"/>
+              <path d="M16.5 12h2m-2 0v2.5m0-2.5v-2.5"/>
+              <circle cx="12" cy="7" r="1"/>
+            </svg>
+            <span>Sair da Caminhada</span>
+          `;
+          console.log('🚶 Modo caminhada ativado via botão');
+        }
+      } else {
+        console.warn('⚠️ Sistema de caminhada não disponível');
+        alert('Sistema de caminhada não está disponível. Certifique-se de que o modo sala ambiente está ativo.');
+      }
+    });
+
+    console.log('✅ Botão da barra flutuante conectado ao sistema de caminhada');
+  } else {
+    console.warn('⚠️ Botão walkModeBtn não encontrado no DOM');
+  }
 
   // =====================================================================
   // LOOP DE RENDERIZAÇÃO
@@ -2114,11 +2192,15 @@ function initEditor() {
       roomModeSystem.update();
     }
     
+    // Atualizar visibilidade da barra flutuante baseada no room mode
+    updateFloatingBarVisibility();
+    
     // Usar câmera correta baseada no modo ativo
     let activeCamera = camera; // Câmera padrão (OrbitControls)
-    
-    // Verificar se o modo caminhada está ativo no roomModeSystem
-    if (roomModeSystem && roomModeSystem.walkBuildModeSystem && roomModeSystem.walkBuildModeSystem.isActive) {
+
+    if (walkBuildModeSystem && walkBuildModeSystem.isActive) {
+      activeCamera = walkBuildModeSystem.walkCamera;
+    } else if (roomModeSystem && roomModeSystem.walkBuildModeSystem && roomModeSystem.walkBuildModeSystem.isActive) {
       activeCamera = roomModeSystem.walkBuildModeSystem.walkCamera;
     }
     
@@ -2130,24 +2212,26 @@ function initEditor() {
   // FUNCIONALIDADE DE EXPORTAÇÃO
   // =====================================================================
 
-  exportBtn.onclick = function () {
-    const voxelData = collectSceneData();
-    
-    // Mostrar opções de exportação
-    const exportType = prompt('Escolha o formato de exportação:\\n1 - HTML (visualizador completo)\\n2 - JSON (apenas dados)\\n\\nDigite 1 ou 2:', '1');
-    
-    if (exportType === '1') {
-      // Exportar como HTML
-      const html = generateExportHTML(voxelData);
-      downloadHTMLFile(html, 'sua-arte-voxel.html');
-    } else if (exportType === '2') {
-      // Exportar como JSON
-      const jsonData = JSON.stringify(voxelData, null, 2);
-      downloadJSONFile(jsonData, 'voxel-data.json');
-    } else if (exportType !== null) {
-      alert('Opção inválida. Use 1 para HTML ou 2 para JSON.');
-    }
-  };
+  if (exportBtn) {
+    exportBtn.onclick = function () {
+      const voxelData = collectSceneData();
+      
+      // Mostrar opções de exportação
+      const exportType = prompt('Escolha o formato de exportação:\\n1 - HTML (visualizador completo)\\n2 - JSON (apenas dados)\\n\\nDigite 1 ou 2:', '1');
+      
+      if (exportType === '1') {
+        // Exportar como HTML
+        const html = generateExportHTML(voxelData);
+        downloadHTMLFile(html, 'sua-arte-voxel.html');
+      } else if (exportType === '2') {
+        // Exportar como JSON
+        const jsonData = JSON.stringify(voxelData, null, 2);
+        downloadJSONFile(jsonData, 'voxel-data.json');
+      } else if (exportType !== null) {
+        alert('Opção inválida. Use 1 para HTML ou 2 para JSON.');
+      }
+    };
+  }
 
   function collectSceneData() {
     return voxels.map(voxel => ({
@@ -2193,7 +2277,6 @@ function initEditor() {
     #controls {
       position: absolute;
       bottom: 20px;
-      left: 20px;
       color: #ccc;
       background: rgba(0,0,0,0.7);
       padding: 10px 15px;
@@ -2439,88 +2522,11 @@ function initEditor() {
   // FUNCIONALIDADE DE IMPORTAÇÃO
   // =====================================================================
 
-  function handleFileImport(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+  
 
-    console.log('📁 Carregando arquivo:', file.name);
+  
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      try {
-        const fileContent = e.target.result;
-        let voxelData = null;
-        
-        // Detectar tipo de arquivo
-        if (file.name.toLowerCase().endsWith('.json')) {
-          // Arquivo JSON direto
-          voxelData = JSON.parse(fileContent);
-        } else if (file.name.toLowerCase().endsWith('.html')) {
-          // Arquivo HTML exportado
-          voxelData = extractVoxelDataFromHTML(fileContent);
-        } else {
-          throw new Error('Tipo de arquivo não suportado. Use arquivos .html ou .json');
-        }
-        
-        if (voxelData && voxelData.length > 0) {
-          loadVoxelData(voxelData);
-          console.log(`✅ ${voxelData.length} voxels carregados com sucesso!`);
-        } else {
-          alert('Nenhum dado de voxel encontrado no arquivo.');
-        }
-      } catch (error) {
-        console.error('❌ Erro ao carregar arquivo:', error);
-        alert('Erro ao carregar arquivo: ' + error.message);
-      }
-    };
-    
-    reader.readAsText(file);
-  }
-
-  function extractVoxelDataFromHTML(htmlContent) {
-    try {
-      // Procurar pelo objeto voxelData no JavaScript do arquivo
-      const voxelDataMatch = htmlContent.match(/const voxelData = (\[[\s\S]*?\]);/);
-      
-      if (voxelDataMatch && voxelDataMatch[1]) {
-        // Usar JSON.parse para converter a string em objeto
-        const voxelData = JSON.parse(voxelDataMatch[1]);
-        console.log('🔍 Dados extraídos:', voxelData.length, 'voxels');
-        return voxelData;
-      }
-      
-      throw new Error('Formato de arquivo não reconhecido');
-    } catch (error) {
-      console.error('Erro ao extrair dados:', error);
-      throw error;
-    }
-  }
-
-  function loadVoxelData(voxelData) {
-    // Limpar cena atual
-    if (confirm(`Carregar ${voxelData.length} voxels? Isso irá substituir a cena atual.`)) {
-      clearScene();
-      
-      // Adicionar cada voxel
-      voxelData.forEach((voxel, index) => {
-        // Validar dados do voxel
-        if (typeof voxel.x === 'number' && 
-            typeof voxel.y === 'number' && 
-            typeof voxel.z === 'number' && 
-            typeof voxel.color === 'string') {
-          
-          addVoxel(voxel.x, voxel.y, voxel.z, voxel.color, false);
-        } else {
-          console.warn(`⚠️ Voxel ${index} com dados inválidos:`, voxel);
-        }
-      });
-      
-      // Salvar estado uma vez após carregar tudo
-      saveState();
-      
-      console.log(`✅ Importação concluída: ${voxels.length} voxels na cena`);
-    }
-  }
+  
 
   console.log('Editor inicializado com sucesso!');
   console.log('Cena criada com', scene.children.length, 'objetos');
@@ -2616,7 +2622,7 @@ function initEditor() {
     let hintTimeout;
     
     function showTrackpadHint() {
-      if (isTrackpad && trackpadHint) {
+      if (trackpadHint) {
         trackpadHint.classList.add('visible');
         clearTimeout(hintTimeout);
         hintTimeout = setTimeout(() => {
@@ -2624,6 +2630,11 @@ function initEditor() {
         }, 4000);
       }
     }
+
+    // Mostrar dica automaticamente ao carregar (para usuários com trackpad)
+    setTimeout(() => {
+      showTrackpadHint();
+    }, 2000); // Aparece após 2 segundos
 
     // Detectar trackpad vs mouse tradicional
     canvas.addEventListener('wheel', (e) => {
@@ -3082,10 +3093,227 @@ function initEditor() {
 
   setupHybridInteraction();
 
-  console.log('Editor inicializado com sucesso!');
-  console.log('Cena criada com', scene.children.length, 'objetos');
-  console.log('Renderer ativo:', !!renderer);
-  console.log('Camera posicionada em:', camera.position);
+  // =====================================================================
+  // SISTEMA DE HISTÓRICO DE UPLOADS
+  // =====================================================================
+
+  // Elementos do sidebar de histórico
+  const uploadHistorySidebar = document.getElementById('upload-history-sidebar');
+  const uploadHistoryBtn = document.getElementById('uploadHistoryBtn');
+  const uploadHistoryClose = document.getElementById('uploadHistorySidebarCloseBtn');
+  const uploadHistoryContent = document.getElementById('uploadHistoryList');
+
+  // Array para armazenar histórico de uploads
+  let uploadHistory = [];
+
+  // Função para abrir o sidebar de histórico
+  function openUploadHistorySidebar() {
+    if (uploadHistorySidebar) {
+      uploadHistorySidebar.classList.add('show');
+      console.log('📂 Sidebar de histórico de uploads aberto');
+    }
+  }
+
+  // Função para fechar o sidebar de histórico
+  function closeUploadHistorySidebar() {
+    if (uploadHistorySidebar) {
+      uploadHistorySidebar.classList.remove('show');
+      console.log('📂 Sidebar de histórico de uploads fechado');
+    }
+  }
+
+  // Função para adicionar arquivo ao histórico
+  function addToUploadHistory(voxelData, filename, type = 'voxel') {
+    const uploadItem = {
+      id: Date.now(),
+      filename: filename,
+      type: type,
+      voxelCount: voxelData.length,
+      timestamp: new Date(),
+      data: voxelData
+    };
+
+    uploadHistory.unshift(uploadItem); // Adicionar no início
+
+    // Limitar histórico a 20 itens
+    if (uploadHistory.length > 20) {
+      uploadHistory = uploadHistory.slice(0, 20);
+    }
+
+    updateUploadHistoryDisplay();
+    console.log(`📝 Arquivo "${filename}" adicionado ao histórico (${voxelData.length} voxels)`);
+  }
+
+  // Função para atualizar a exibição do histórico
+  function updateUploadHistoryDisplay() {
+    if (!uploadHistoryContent) return;
+
+    if (uploadHistory.length === 0) {
+      uploadHistoryContent.innerHTML = `
+        <div class="upload-history-empty">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14,2 14,8 20,8"/>
+          </svg>
+          <p>Nenhum arquivo carregado ainda</p>
+          <small>Use o botão "Carregar Voxels" para começar</small>
+        </div>
+      `;
+      return;
+    }
+
+    uploadHistoryContent.innerHTML = uploadHistory.map(item => `
+      <div class="upload-history-item" data-id="${item.id}">
+        <div class="upload-item-info">
+          <div class="upload-item-name">${item.filename}</div>
+          <div class="upload-item-meta">
+            ${item.voxelCount} voxels • ${item.timestamp.toLocaleTimeString()}
+          </div>
+        </div>
+        <div class="upload-item-actions">
+          <button class="upload-item-btn reload-btn" data-id="${item.id}" title="Recarregar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"/>
+              <polyline points="1 20 1 14 7 14"/>
+              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+            </svg>
+          </button>
+          <button class="upload-item-btn delete-btn" data-id="${item.id}" title="Remover">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    // Adicionar event listeners para os botões
+    document.querySelectorAll('.reload-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = parseInt(e.currentTarget.dataset.id);
+        reloadFromHistory(id);
+      });
+    });
+
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = parseInt(e.currentTarget.dataset.id);
+        removeFromHistory(id);
+      });
+    });
+  }
+
+  // Função para recarregar arquivo do histórico
+  function reloadFromHistory(id) {
+    const item = uploadHistory.find(item => item.id === id);
+    if (!item) return;
+
+    console.log(`🔄 Recarregando "${item.filename}" do histórico`);
+
+    // Perguntar confirmação
+    const shouldLoad = confirm(`Recarregar "${item.filename}" (${item.voxelCount} voxels)? Isso irá substituir a cena atual.`);
+
+    if (!shouldLoad) return;
+
+    try {
+      // Limpar cena atual
+      clearScene();
+
+      // Adicionar voxels
+      item.data.forEach(voxel => {
+        addVoxel(voxel.x, voxel.y, voxel.z, voxel.color, false);
+      });
+
+      // Salvar estado
+      saveState();
+
+      console.log(`✅ Arquivo "${item.filename}" recarregado com sucesso`);
+      updateVoxelCount();
+
+      // Fechar sidebar
+      closeUploadHistorySidebar();
+
+    } catch (error) {
+      console.error('❌ Erro ao recarregar arquivo:', error);
+      alert('Erro ao recarregar arquivo: ' + error.message);
+    }
+  }
+
+  // Função para remover arquivo do histórico
+  function removeFromHistory(id) {
+    const index = uploadHistory.findIndex(item => item.id === id);
+    if (index === -1) return;
+
+    const item = uploadHistory[index];
+    const shouldDelete = confirm(`Remover "${item.filename}" do histórico?`);
+
+    if (!shouldDelete) return;
+
+    uploadHistory.splice(index, 1);
+    updateUploadHistoryDisplay();
+
+    console.log(`🗑️ Arquivo "${item.filename}" removido do histórico`);
+  }
+
+  // Event listeners para o sidebar
+  if (uploadHistoryBtn) {
+    uploadHistoryBtn.addEventListener('click', openUploadHistorySidebar);
+  }
+
+  if (uploadHistoryClose) {
+    uploadHistoryClose.addEventListener('click', closeUploadHistorySidebar);
+  }
+
+  // Event listener para o campo de input file no sidebar
+  const voxelFileInput = document.getElementById('voxelFileInput');
+  if (voxelFileInput) {
+    voxelFileInput.addEventListener('change', (event) => {
+      const files = event.target.files;
+      if (files && files.length > 0) {
+        console.log('📁 Arquivos selecionados via sidebar:', files.length);
+        
+        // Processar múltiplos arquivos se selecionados
+        Array.from(files).forEach(file => {
+          if (fileUploadSystem) {
+            // Simular o comportamento do handleFileChange
+            fileUploadSystem.currentCallbackType = 'voxel';
+            const fakeEvent = { target: { files: [file] } };
+            fileUploadSystem.handleFileChange(fakeEvent);
+          }
+        });
+        
+        // Limpar o input para permitir seleção do mesmo arquivo novamente
+        event.target.value = '';
+      }
+    });
+  }
+
+  // Fechar sidebar ao clicar fora
+  document.addEventListener('click', (e) => {
+    if (uploadHistorySidebar && uploadHistorySidebar.classList.contains('show') &&
+        !uploadHistorySidebar.contains(e.target) &&
+        !uploadHistoryBtn.contains(e.target)) {
+      closeUploadHistorySidebar();
+    }
+  });
+
+  // Atualizar callbacks do sistema de upload para incluir histórico
+  const originalOnVoxelDataLoaded = fileUploadSystem.callbacks.onVoxelDataLoaded;
+  fileUploadSystem.setCallbacks({
+    ...fileUploadSystem.callbacks,
+    onVoxelDataLoaded: (voxelData, filename) => {
+      // Chamar callback original
+      originalOnVoxelDataLoaded(voxelData, filename);
+
+      // Adicionar ao histórico
+      addToUploadHistory(voxelData, filename, 'voxel');
+    }
+  });
+
+  console.log('📂 Sistema de histórico de uploads inicializado');
 
 } // Fim da função initEditor()
 

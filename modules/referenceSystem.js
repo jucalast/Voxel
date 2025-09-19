@@ -3,9 +3,9 @@
 // =====================================================================
 
 export class ReferenceImageSystem {
-  constructor(uploadElement, fileInputElement, imageElement, controlsElement, opacityBtn, removeBtn) {
+  constructor(uploadElement, fileUploadSystem, imageElement, controlsElement, opacityBtn, removeBtn) {
     this.uploadElement = uploadElement;
-    this.fileInputElement = fileInputElement;
+    this.fileUploadSystem = fileUploadSystem; // Store the fileUploadSystem instance
     this.imageElement = imageElement;
     this.controlsElement = controlsElement;
     this.opacityBtn = opacityBtn;
@@ -23,7 +23,7 @@ export class ReferenceImageSystem {
     // Debug: verificar se elementos flutuantes existem
     console.log('Elementos de referência encontrados:', {
       uploadElement: !!this.uploadElement,
-      fileInputElement: !!this.fileInputElement,
+      fileUploadSystem: !!this.fileUploadSystem,
       container: !!this.floatingContainer,
       image: !!this.floatingImage,
       opacityBtn: !!this.floatingOpacityBtn,
@@ -31,6 +31,10 @@ export class ReferenceImageSystem {
       header: !!this.floatingHeader,
       resizeHandle: !!this.resizeHandle
     });
+    
+    if (!this.fileUploadSystem) {
+      console.warn('fileUploadSystem is null, upload functionality may not work.');
+    }
     
     // Estados de interação
     this.isDragging = false;
@@ -48,50 +52,48 @@ export class ReferenceImageSystem {
   }
 
   setupEventListeners() {
-    // Click no div para abrir seletor de arquivo (apenas se existir)
-    if (this.uploadElement && this.fileInputElement) {
+    // Click no div para abrir seletor de arquivo
+    if (this.uploadElement) {
       this.uploadElement.addEventListener('click', () => {
         console.log('Botão de upload clicado, abrindo seletor de arquivo...');
-        this.fileInputElement.click();
+        if (this.fileUploadSystem) {
+          this.fileUploadSystem.openDialog('image/*', 'referenceImage');
+        } else {
+          console.warn('fileUploadSystem not available for opening dialog.');
+        }
       });
     } else {
-      console.warn('Upload elements não encontrados:', {
-        uploadElement: !!this.uploadElement,
-        fileInputElement: !!this.fileInputElement
-      });
+      console.warn('Upload element (uploadBtn) não encontrado.');
     }
 
-    // Upload da imagem de referência (apenas se existir)
-    if (this.fileInputElement) {
-      this.fileInputElement.addEventListener('change', (event) => {
-        const file = event.target.files[0];
-        if (file && file.type.startsWith('image/')) {
-          this.loadImage(file);
+    // Funcionalidade de drag & drop moderna (apenas se uploadElement existir)
+    if (this.uploadElement) {
+      this.uploadElement.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        this.uploadElement.classList.add('drag-over');
+      });
+
+      this.uploadElement.addEventListener('dragleave', (event) => {
+        event.preventDefault();
+        this.uploadElement.classList.remove('drag-over');
+      });
+
+      this.uploadElement.addEventListener('drop', (event) => {
+        event.preventDefault();
+        this.uploadElement.classList.remove('drag-over');
+        this.uploadElement.style.background = '#2a2a2a';
+        
+        const files = event.dataTransfer.files;
+        if (files.length > 0 && files[0].type.startsWith('image/')) {
+          // Use fileUploadSystem to handle the dropped file
+          if (this.fileUploadSystem) {
+            this.fileUploadSystem.handleFileChange({ target: { files: [files[0]] } });
+          } else {
+            console.warn('fileUploadSystem not available for handling dropped file.');
+          }
         }
       });
     }
-
-    // Funcionalidade de drag & drop moderna
-    this.uploadElement.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      this.uploadElement.classList.add('drag-over');
-    });
-
-    this.uploadElement.addEventListener('dragleave', (event) => {
-      event.preventDefault();
-      this.uploadElement.classList.remove('drag-over');
-    });
-
-    this.uploadElement.addEventListener('drop', (event) => {
-      event.preventDefault();
-      this.uploadElement.classList.remove('drag-over');
-      this.uploadElement.style.background = '#2a2a2a';
-      
-      const files = event.dataTransfer.files;
-      if (files.length > 0 && files[0].type.startsWith('image/')) {
-        this.loadImage(files[0]);
-      }
-    });
 
     // Controle de opacidade (apenas se existir)
     if (this.opacityBtn) {
@@ -222,45 +224,7 @@ export class ReferenceImageSystem {
     this.floatingContainer.classList.remove('resizing');
   }
 
-  loadImage(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      // Atualizar imagem na sidebar (apenas se existir)
-      if (this.imageElement) {
-        this.imageElement.src = e.target.result;
-        this.imageElement.style.display = 'block';
-      }
-      if (this.controlsElement) {
-        this.controlsElement.classList.add('active');
-      }
-      
-      // Mostrar imagem flutuante (apenas se existir)
-      if (this.floatingImage) {
-        this.floatingImage.src = e.target.result;
-      }
-      if (this.floatingContainer) {
-        this.floatingContainer.style.display = 'block';
-      }
-      
-      // Não alterar o uploadBtn que já tem o ícone SVG correto
-      // if (this.uploadElement) {
-      //   this.uploadElement.innerHTML = '';
-      // }
-      
-      console.log('Imagem de referência carregada:', file.name);
-      
-      // Dispara evento customizado para extração de cores
-      document.dispatchEvent(new CustomEvent('imageLoaded', {
-        detail: { fileName: file.name, src: e.target.result }
-      }));
-      
-      // Mantém compatibilidade com outros sistemas
-      this.uploadElement.dispatchEvent(new CustomEvent('imageLoaded', {
-        detail: { fileName: file.name, src: e.target.result }
-      }));
-    };
-    reader.readAsDataURL(file);
-  }
+  
 
   changeOpacity() {
     this.opacity -= 0.25;
@@ -299,9 +263,7 @@ export class ReferenceImageSystem {
     }
     
     // Resetar valores (apenas se existirem)
-    if (this.fileInputElement) {
-      this.fileInputElement.value = '';
-    }
+    
     this.opacity = 1.0;
     
     // Resetar textos dos botões (apenas se existirem)
@@ -334,7 +296,41 @@ export class ReferenceImageSystem {
 
   setOpacity(value) {
     this.opacity = Math.max(0.25, Math.min(1.0, value));
-    this.imageElement.style.opacity = this.opacity;
-    this.opacityBtn.textContent = `Opacity: ${Math.round(this.opacity * 100)}%`;
+    if (this.imageElement) {
+      this.imageElement.style.opacity = this.opacity;
+    }
+    if (this.opacityBtn) {
+      this.opacityBtn.textContent = `Opacity: ${Math.round(this.opacity * 100)}%`;
+    }
+  }
+
+  setImage(imageDataUrl) {
+    // Set image in sidebar
+    if (this.imageElement) {
+      this.imageElement.src = imageDataUrl;
+      this.imageElement.style.display = 'block';
+    }
+    
+    // Set image in floating reference
+    if (this.floatingImage) {
+      this.floatingImage.src = imageDataUrl;
+      this.floatingImage.style.display = 'block';
+    }
+    
+    // Show controls if they exist
+    if (this.controlsElement) {
+      this.controlsElement.classList.add('active');
+    }
+    
+    // Show floating container if it exists
+    if (this.floatingContainer) {
+      this.floatingContainer.style.display = 'block';
+    }
+    
+    // Reset opacity to full
+    this.opacity = 1.0;
+    this.changeOpacity();
+    
+    console.log('✅ Imagem de referência definida com sucesso');
   }
 }

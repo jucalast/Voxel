@@ -28,6 +28,7 @@
 // =====================================================================
 
 import { WalkBuildModeSystem } from './walkBuildMode.js';
+import { TimeSystem } from './timeSystem.js';
 
 export class RoomModeSystem {
   constructor(scene, camera, controls, updateCursor, renderer = null) {
@@ -36,6 +37,8 @@ export class RoomModeSystem {
     this.controls = controls;
     this.updateCursor = updateCursor;
     this.renderer = renderer;
+
+    this.timeSystem = new TimeSystem();
 
     this.isRoomMode = false;
     this.roomObjects = [];
@@ -50,18 +53,20 @@ export class RoomModeSystem {
     // Elementos DOM do modo sala
     this.roomModeBtn = document.getElementById('roomModeBtn');
     this.roomPanel = document.getElementById('room-panel');
-    this.roomLoadInput = document.getElementById('roomLoadInput');
-    this.roomLoadBtn = document.getElementById('roomLoadBtn');
 
     // Inicializar sistema de caminhada e construção
     this.initWalkBuildSystem();
     this.roomObjectsList = document.getElementById('roomObjectsList');
-    this.roomBackBtn = document.getElementById('roomBackBtn');
     this.roomSaveBtn = document.getElementById('roomSaveBtn');
     this.roomClearBtn = document.getElementById('roomClearBtn');
 
     // Referências para elementos do editor
     this.leftPanel = document.getElementById('left-panel');
+    this.iconToolbar = document.getElementById('icon-toolbar');
+
+    // Elementos da barra superior
+    this.topBar = document.getElementById('top-bar');
+    this.enterWalkModeBtn = document.getElementById('enter-walk-mode-btn');
 
     // Variáveis do editor (serão passadas quando inicializar)
     this.distance = null;
@@ -69,14 +74,14 @@ export class RoomModeSystem {
     this.angleY = null;
 
     // Sistema de caminhada e construção
-    this.walkBuildSystem = new WalkBuildModeSystem(this.scene, this.camera, this.controls, this);
+    this.walkBuildModeSystem = null;
 
     this.initWalkBuildSystem();
   }
 
   initWalkBuildSystem() {
     // Criar instância do sistema de caminhada e construção
-    if (window.WalkBuildModeSystem) {
+    if (typeof WalkBuildModeSystem !== 'undefined') {
       // Passar as funções do editor para o sistema de caminhada
       const editorFunctions = {
         addVoxel: (x, y, z, color, saveHistory = true) => {
@@ -118,12 +123,16 @@ export class RoomModeSystem {
         }
       };
 
-      this.walkBuildModeSystem = new window.WalkBuildModeSystem(
+      this.walkBuildModeSystem = new WalkBuildModeSystem(
         this.scene,
         this.camera,
         this.controls,
         this,
-        editorFunctions
+        editorFunctions,
+        (isActive) => {
+          // Callback para atualizar o estado do botão quando walk mode muda
+          this.updateWalkModeButtonState();
+        }
       );
       console.log('✅ Sistema de caminhada e construção inicializado com funções do editor');
     } else {
@@ -134,23 +143,51 @@ export class RoomModeSystem {
   init() {
     // Event listeners para o modo sala
     this.roomModeBtn.addEventListener('click', () => this.toggleRoomMode());
-    this.roomBackBtn.addEventListener('click', () => this.toggleRoomMode());
-    this.roomLoadBtn.addEventListener('click', () => this.roomLoadInput.click());
-    this.roomLoadInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        this.loadRoomObject(file);
-      }
-    });
+    this.roomSaveBtn.addEventListener('click', () => this.saveRoom());
     this.roomClearBtn.addEventListener('click', () => {
       if (confirm('Remover todos os objetos da sala?')) {
         this.clearRoomObjects();
       }
     });
 
-    this.roomSaveBtn.addEventListener('click', () => this.saveRoom());
+    // Event listeners para o upload de objetos da sala
+    const newRoomObjectInput = document.getElementById('newRoomObjectInput');
+    const newRoomObjectBtn = document.getElementById('newRoomObjectBtn');
 
-   
+    if (newRoomObjectBtn && newRoomObjectInput) {
+      newRoomObjectBtn.addEventListener('click', () => {
+        console.log('roomMode.js: newRoomObjectBtn clicked. Attempting to open file dialog.'); // NEW LOG
+        if (window.fileUploadSystem) {
+          window.fileUploadSystem.openDialog('.html,.json', 'roomObject');
+        } else {
+          console.error('fileUploadSystem not available globally.');
+        }
+      });
+
+      // The change event listener is handled by fileUploadSystem.handleFileChange
+      // We just need to make sure the input is cleared after selection
+      newRoomObjectInput.addEventListener('change', (event) => {
+        event.target.value = ''; // Clear the input to allow re-uploading the same file
+      });
+    }
+
+
+    if (this.enterWalkModeBtn) {
+      this.enterWalkModeBtn.addEventListener('click', () => {
+        if (this.walkBuildModeSystem) {
+          if (this.walkBuildModeSystem.isActive) {
+            this.walkBuildModeSystem.exitWalkMode();
+            this.updateWalkModeButtonState();
+          } else {
+            this.walkBuildModeSystem.enterWalkMode();
+            this.updateWalkModeButtonState();
+          }
+        }
+      });
+    }
+
+    // Inicializar estado do botão
+    this.updateWalkModeButtonState();
   }
 
   // Configurar variáveis do editor
@@ -280,32 +317,26 @@ export class RoomModeSystem {
       this.renderer.toneMappingExposure = 1.2; // Exposição ligeiramente aumentada
     }
 
-    // Esconder elementos do editor
-    this.leftPanel.style.display = 'none';
+    // Fechar o painel de cores e mostrar a barra superior
+    if (this.leftPanel.classList.contains('show')) {
+      this.leftPanel.classList.remove('show');
+    }
+    if (this.iconToolbar) {
+      this.iconToolbar.style.left = '10px'; // Posição original
+    }
+    if (this.topBar) {
+      this.topBar.style.display = 'flex';
+    }
 
     // Mostrar elementos da sala
     this.roomPanel.style.display = 'flex';
     document.body.classList.add('room-mode');
 
-    // Criar botão do modo caminhada
-    if (this.walkBuildModeSystem && this.walkBuildModeSystem.createToggleButton) {
-      // Criar container para controles adicionais se não existir
-      let controlsContainer = this.roomPanel.querySelector('.room-controls');
-      if (!controlsContainer) {
-        controlsContainer = document.createElement('div');
-        controlsContainer.className = 'room-controls';
-        controlsContainer.style.cssText = `
-          padding: 10px;
-          border-bottom: 1px solid #e5e7eb;
-          background: #f9fafb;
-        `;
-        this.roomPanel.insertBefore(controlsContainer, this.roomPanel.firstChild);
-      }
-      this.walkBuildModeSystem.createToggleButton(controlsContainer);
-    }
-
     // Criar geometria da sala
     this.createRoomGeometry();
+
+    // Configurar iluminação inicial (Manhã)
+    this.updateLighting('Manhã');
 
     // Configurar câmera para visão de sala
     this.camera.position.set(20, 15, 20);
@@ -319,8 +350,15 @@ export class RoomModeSystem {
   exitRoomMode() {
     console.log('🎭 Saindo do modo Sala Ambiente');
 
-    // Mostrar elementos do editor
-    this.leftPanel.style.display = 'flex';
+    // Restaurar painel de cores e esconder a barra superior (se walk mode não estiver ativo)
+    this.leftPanel.classList.add('show');
+    if (this.iconToolbar) {
+      this.iconToolbar.style.left = '345px';
+    }
+    // Manter a barra visível por padrão
+    if (this.topBar) {
+      this.topBar.style.display = 'flex';
+    }
 
     // Esconder elementos da sala
     this.roomPanel.style.display = 'none';
@@ -392,7 +430,7 @@ export class RoomModeSystem {
     this.roomWalls.push(rightWall);
 
     // Adicionar iluminação otimizada para o modo sala
-    this.setupRoomLighting();
+    // this.setupRoomLighting(); // Removido pois updateLighting é chamado em enterRoomMode
   }
 
   removeRoomGeometry() {
@@ -413,64 +451,144 @@ export class RoomModeSystem {
     this.removeRoomLighting();
   }
 
-  setupRoomLighting() {
-    console.log('💡 Configurando iluminação otimizada para o modo sala');
+  setupRoomLighting(lightingConfig) {
+    console.log('💡 Configurando iluminação para o modo sala:', lightingConfig);
 
-    // Luz ambiente mais forte para melhor visibilidade
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Remover luzes existentes antes de adicionar novas
+    this.removeRoomLighting();
+
+    // Luz ambiente
+    const ambientLight = new THREE.AmbientLight(lightingConfig.ambientLight.color, lightingConfig.ambientLight.intensity);
     ambientLight.name = 'roomAmbientLight';
     this.scene.add(ambientLight);
 
-    // Luz direcional principal (mais forte)
-    const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    mainLight.position.set(15, 25, 15);
-    mainLight.target.position.set(0, 0, 0);
-    mainLight.castShadow = true;
-    mainLight.shadow.mapSize.width = 2048;
-    mainLight.shadow.mapSize.height = 2048;
-    mainLight.shadow.camera.near = 0.5;
-    mainLight.shadow.camera.far = 50;
-    mainLight.shadow.camera.left = -20;
-    mainLight.shadow.camera.right = 20;
-    mainLight.shadow.camera.top = 20;
-    mainLight.shadow.camera.bottom = -20;
-    mainLight.shadow.bias = -0.0001;
-    mainLight.name = 'roomMainLight';
-    this.scene.add(mainLight);
-    this.scene.add(mainLight.target);
+    // Luz direcional principal (sol/lua)
+    let mainLight = this.scene.getObjectByName('roomMainLight');
+    if (!mainLight) {
+      mainLight = new THREE.DirectionalLight(lightingConfig.mainLight.color, lightingConfig.mainLight.intensity);
+      mainLight.name = 'roomMainLight';
+      mainLight.castShadow = true;
+      mainLight.shadow.mapSize.width = 2048;
+      mainLight.shadow.mapSize.height = 2048;
+      mainLight.shadow.camera.near = 0.1; // Closer near plane for better precision
+      mainLight.shadow.camera.far = 100; // Further far plane to cover more of the room
+      // Adjust frustum to cover the room more effectively
+      const roomSize = 20; // Assuming room is 20x10x20 (width, height, depth)
+      const shadowCameraSize = roomSize * 1.5; // Slightly larger than room to avoid clipping
+      mainLight.shadow.camera.left = -shadowCameraSize;
+      mainLight.shadow.camera.right = shadowCameraSize;
+      mainLight.shadow.camera.top = shadowCameraSize;
+      mainLight.shadow.camera.bottom = -shadowCameraSize;
+      mainLight.shadow.bias = -0.0001;
+      mainLight.shadow.normalBias = 0.05; // Add normal bias to reduce shadow acne
+      this.scene.add(mainLight);
+      mainLight.target = new THREE.Object3D(); // Create a target if it doesn't exist
+      this.scene.add(mainLight.target);
+    } else {
+      mainLight.color.setHex(lightingConfig.mainLight.color);
+      mainLight.intensity = lightingConfig.mainLight.intensity;
+    }
+    mainLight.position.set(lightingConfig.mainLight.position.x, lightingConfig.mainLight.position.y, lightingConfig.mainLight.position.z);
+    mainLight.target.position.set(0, 0, 0); // Always look at the center
 
-    // Luz de preenchimento para reduzir sombras fortes
-    const fillLight = new THREE.DirectionalLight(0x8080ff, 0.4);
+    // Adicionar efeito de God Rays (raios crepusculares)
+    let volumetricLight = this.scene.getObjectByName('roomVolumetricLight');
+    if (!volumetricLight) {
+      const coneGeometry = new THREE.ConeGeometry(2, 30, 32); // Raio, altura, segmentos
+      coneGeometry.translate(0, 15, 0); // Mover para que a base esteja na origem
+      const coneMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.05, // Opacidade inicial baixa
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide
+      });
+      volumetricLight = new THREE.Mesh(coneGeometry, coneMaterial);
+      volumetricLight.name = 'roomVolumetricLight';
+      this.scene.add(volumetricLight);
+    }
+
+    // Posicionar e orientar o cone com a luz principal
+    volumetricLight.position.copy(mainLight.position);
+    volumetricLight.lookAt(mainLight.target.position);
+    volumetricLight.rotateX(Math.PI / 2); // Ajustar orientação do cone
+
+    // Ajustar opacidade e cor com base na intensidade da luz principal
+    const lightIntensityFactor = lightingConfig.mainLight.intensity / 1.5; // Max intensity is 1.5
+    volumetricLight.material.opacity = 0.02 + (lightIntensityFactor * 0.08); // Mais visível com luz forte
+    volumetricLight.material.color.setHex(lightingConfig.mainLight.color);
+
+    // Tornar visível apenas durante o dia e com intensidade suficiente
+    volumetricLight.visible = lightingConfig.mainLight.intensity > 0.5;
+
+    // Luz de preenchimento
+    let fillLight = this.scene.getObjectByName('roomFillLight');
+    if (!fillLight) {
+      fillLight = new THREE.DirectionalLight(lightingConfig.fillLight.color, lightingConfig.fillLight.intensity);
+      fillLight.name = 'roomFillLight';
+      this.scene.add(fillLight);
+    } else {
+      fillLight.color.setHex(lightingConfig.fillLight.color);
+      fillLight.intensity = lightingConfig.fillLight.intensity;
+    }
     fillLight.position.set(-10, 15, -10);
-    fillLight.name = 'roomFillLight';
-    this.scene.add(fillLight);
 
-    // Luz traseira para melhor iluminação geral
-    const backLight = new THREE.DirectionalLight(0xff8080, 0.3);
+    // Luz traseira
+    let backLight = this.scene.getObjectByName('roomBackLight');
+    if (!backLight) {
+      backLight = new THREE.DirectionalLight(lightingConfig.backLight.color, lightingConfig.backLight.intensity);
+      backLight.name = 'roomBackLight';
+      this.scene.add(backLight);
+    } else {
+      backLight.color.setHex(lightingConfig.backLight.color);
+      backLight.intensity = lightingConfig.backLight.intensity;
+    }
     backLight.position.set(0, 10, -15);
-    backLight.name = 'roomBackLight';
-    this.scene.add(backLight);
 
-    // Luz superior para iluminação uniforme
-    const topLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    // Luz superior
+    let topLight = this.scene.getObjectByName('roomTopLight');
+    if (!topLight) {
+      topLight = new THREE.DirectionalLight(lightingConfig.topLight.color, lightingConfig.topLight.intensity);
+      topLight.name = 'roomTopLight';
+      this.scene.add(topLight);
+      topLight.target = new THREE.Object3D(); // Create a target if it doesn't exist
+      this.scene.add(topLight.target);
+    } else {
+      topLight.color.setHex(lightingConfig.topLight.color);
+      topLight.intensity = lightingConfig.topLight.intensity;
+    }
     topLight.position.set(0, 20, 0);
     topLight.target.position.set(0, 0, 0);
-    topLight.name = 'roomTopLight';
-    this.scene.add(topLight);
-    this.scene.add(topLight.target);
 
-    // Luzes pontuais para iluminação local
-    const pointLight1 = new THREE.PointLight(0xffffff, 0.8, 30);
+    // Luzes pontuais
+    let pointLight1 = this.scene.getObjectByName('roomPointLight1');
+    if (!pointLight1) {
+      pointLight1 = new THREE.PointLight(lightingConfig.pointLight1.color, lightingConfig.pointLight1.intensity, lightingConfig.pointLight1.distance);
+      pointLight1.name = 'roomPointLight1';
+      this.scene.add(pointLight1);
+    } else {
+      pointLight1.color.setHex(lightingConfig.pointLight1.color);
+      pointLight1.intensity = lightingConfig.pointLight1.intensity;
+      pointLight1.distance = lightingConfig.pointLight1.distance;
+    }
     pointLight1.position.set(8, 8, 8);
-    pointLight1.name = 'roomPointLight1';
-    this.scene.add(pointLight1);
 
-    const pointLight2 = new THREE.PointLight(0xffffff, 0.8, 30);
+    let pointLight2 = this.scene.getObjectByName('roomPointLight2');
+    if (!pointLight2) {
+      pointLight2 = new THREE.PointLight(lightingConfig.pointLight2.color, lightingConfig.pointLight2.intensity, lightingConfig.pointLight2.distance);
+      pointLight2.name = 'roomPointLight2';
+      this.scene.add(pointLight2);
+    } else {
+      pointLight2.color.setHex(lightingConfig.pointLight2.color);
+      pointLight2.intensity = lightingConfig.pointLight2.intensity;
+      pointLight2.distance = lightingConfig.pointLight2.distance;
+    }
     pointLight2.position.set(-8, 8, -8);
-    pointLight2.name = 'roomPointLight2';
-    this.scene.add(pointLight2);
 
-    console.log('✅ Iluminação do modo sala configurada com 7 luzes');
+    // Configurar nevoeiro
+    this.scene.fog = new THREE.Fog(lightingConfig.fog.color, lightingConfig.fog.near, lightingConfig.fog.far);
+
+    console.log('✅ Iluminação do modo sala configurada com sucesso.');
   }
 
   removeRoomLighting() {
@@ -498,12 +616,20 @@ export class RoomModeSystem {
         }
       }
     });
+    // Remover nevoeiro
+    this.scene.fog = null;
 
     console.log('✅ Iluminação do modo sala removida');
   }
 
+  updateLighting(timeOfDay) {
+    const lightingConfig = this.timeSystem.getLightingConfig(timeOfDay);
+    this.setupRoomLighting(lightingConfig);
+  }
+
   // Carregar objeto voxel
   loadRoomObject(file) {
+    console.log('Attempting to load file:', file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -512,8 +638,10 @@ export class RoomModeSystem {
 
         if (file.name.toLowerCase().endsWith('.json')) {
           voxelData = JSON.parse(fileContent);
+          console.log('Loaded JSON voxelData:', voxelData);
         } else if (file.name.toLowerCase().endsWith('.html')) {
           voxelData = this.extractVoxelDataFromHTML(fileContent);
+          console.log('Extracted HTML voxelData:', voxelData);
         } else {
           alert('Formato não suportado. Use arquivos .html ou .json');
           return;
@@ -523,6 +651,7 @@ export class RoomModeSystem {
           this.addRoomObject(voxelData, file.name);
         } else {
           alert('Nenhum dado de voxel encontrado no arquivo.');
+          console.warn('No voxel data found in file:', file.name);
         }
       } catch (error) {
         console.error('Erro ao carregar arquivo:', error);
@@ -586,6 +715,16 @@ export class RoomModeSystem {
     );
 
     this.roomObjects.push(roomObject);
+
+    // Garantir que o room panel seja mostrado quando objetos são carregados
+    if (this.roomPanel && this.roomPanel.style.display !== 'flex') {
+      this.roomPanel.style.display = 'flex';
+      console.log('🎭 Room panel mostrado automaticamente ao carregar objeto');
+    }
+
+    // Adicionar controles de transformação diretamente no room-content
+    this.addTransformControls(roomObject);
+
     this.updateRoomObjectsList();
 
     console.log(`✅ Objeto "${roomObject.name}" adicionado à sala (${voxelData.length} voxels) com materiais otimizados`);
@@ -655,13 +794,11 @@ export class RoomModeSystem {
               </div>
               <div class="new-transform-slider-group">
                 <span class="input-group-label" style="color: #10b981;">Y</span>
-                <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="y" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}">
-                <span class="slider-value-new">${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}°</span>
+                <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="y" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}°</span>
               </div>
               <div class="new-transform-slider-group">
                 <span class="input-group-label" style="color: #06b6d4;">Z</span>
-                <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="z" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}">
-                <span class="slider-value-new">${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}°</span>
+                <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="z" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}°</span>
               </div>
             </div>
           </div>
@@ -804,7 +941,7 @@ export class RoomModeSystem {
           const toggleIcon = header.querySelector('.card-toggle-icon');
 
           body.classList.toggle('collapsed');
-          toggleIcon.style.transform = body.classList.contains('collapsed') ? 'rotate(180deg)' : 'rotate(0deg)';
+          toggleIcon.style.transform = body.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(180deg)';
         }
       });
     });
@@ -835,6 +972,12 @@ export class RoomModeSystem {
 
       this.roomObjects.splice(index, 1);
       this.updateRoomObjectsList();
+
+      // Limpar controles de transformação se o objeto removido era o que estava sendo controlado
+      const transformControls = document.getElementById('transformControls');
+      if (transformControls && this.roomObjects.length === 0) {
+        transformControls.innerHTML = '';
+      }
     }
   }
 
@@ -849,6 +992,12 @@ export class RoomModeSystem {
     }
 
     this.updateRoomObjectsList();
+
+    // Limpar controles de transformação
+    const transformControls = document.getElementById('transformControls');
+    if (transformControls) {
+      transformControls.innerHTML = '';
+    }
   }
 
   saveRoom() {
@@ -872,24 +1021,278 @@ export class RoomModeSystem {
     URL.revokeObjectURL(url);
   }
 
-  // Método auxiliar para obter propriedades de material
-  getMaterialProperty(obj, property, defaultValue) {
-    let value = defaultValue;
+  // Método para adicionar controles de transformação no room-content
+  addTransformControls(obj) {
+    const transformControls = document.getElementById('transformControls');
+    if (!transformControls) return;
 
-    obj.meshGroup.traverse((child) => {
-      if (child.isMesh && child.material && child.material[property] !== undefined) {
-        value = child.material[property];
-        return; // Retorna o primeiro valor encontrado
+    // Limpar controles anteriores
+    transformControls.innerHTML = '';
+
+    // Criar container dos controles
+    const controlsContainer = document.createElement('div');
+    controlsContainer.className = 'transform-controls-card';
+    controlsContainer.innerHTML = `
+      <div class="card-header">
+        <h5>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+             <path d="M10 2a.75.75 0 01.75.75v.51a4.52 4.52 0 012.14.996l.45-.45a.75.75 0 111.06 1.06l-.45.45c.36.47.65.99.86 1.55h.51a.75.75 0 110 1.5h-.51a4.52 4.52 0 01-.86 1.55l.45.45a.75.75 0 11-1.06 1.06l-.45-.45a4.52 4.52 0 01-2.14.996v.51a.75.75 0 11-1.5 0v-.51a4.52 4.52 0 01-2.14-.996l-.45.45a.75.75 0 11-1.06-1.06l.45-.45a4.52 4.52 0 01-.86-1.55h-.51a.75.75 0 010-1.5h.51c.21-.56.5-1.08.86-1.55l-.45-.45a.75.75 0 011.06-1.06l.45.45c.6-.43 1.32-.77 2.14-.996V2.75A.75.75 0 0110 2zM8.5 10a1.5 1.5 0 103 0 1.5 1.5 0 00-3 0z" />
+          </svg>
+          <span>${obj.name}</span>
+        </h5>
+        <svg class="card-toggle-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832l-3.71 3.938a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd" />
+        </svg>
+      </div>
+      <div class="card-body">
+        <div class="transform-section">
+          <div class="transform-header">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clip-rule="evenodd" />
+            </svg>
+            <span>Posição</span>
+          </div>
+          <div class="new-transform-inputs">
+            <div class="new-transform-slider-group">
+              <span class="input-group-label" style="color: #ef4444;">X</span>
+              <input type="range" class="new-transform-slider" data-transform="position" data-axis="x" data-obj-id="${obj.id}" min="-20" max="20" step="0.1" value="${obj.position.x.toFixed(1)}">
+              <span class="slider-value-new">${obj.position.x.toFixed(1)}</span>
+            </div>
+            <div class="new-transform-slider-group">
+              <span class="input-group-label" style="color: #10b981;">Y</span>
+              <input type="range" class="new-transform-slider" data-transform="position" data-axis="y" data-obj-id="${obj.id}" min="-20" max="20" step="0.1" value="${obj.position.y.toFixed(1)}">
+              <span class="slider-value-new">${obj.position.y.toFixed(1)}</span>
+            </div>
+            <div class="new-transform-slider-group">
+              <span class="input-group-label" style="color: #06b6d4;">Z</span>
+              <input type="range" class="new-transform-slider" data-transform="position" data-axis="z" data-obj-id="${obj.id}" min="-20" max="20" step="0.1" value="${obj.position.z.toFixed(1)}">
+              <span class="slider-value-new">${obj.position.z.toFixed(1)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="transform-section">
+          <div class="transform-header">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M4.5 2A2.5 2.5 0 002 4.5v3A2.5 2.5 0 004.5 10h.615l.788 5.5H6a1 1 0 001 1h6a1 1 0 001-1h-.693l.788-5.5H15.5A2.5 2.5 0 0018 7.5v-3A2.5 2.5 0 0015.5 2h-11zM6.25 14.5a1.25 1.25 0 11-2.5 0 1.25 1.25 0 012.5 0zm7.5 0a1.25 1.25 0 11-2.5 0 1.25 1.25 0 012.5 0z" clip-rule="evenodd" />
+            </svg>
+            <span>Rotação</span>
+          </div>
+          <div class="new-transform-inputs">
+            <div class="new-transform-slider-group">
+              <span class="input-group-label" style="color: #ef4444;">X</span>
+              <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="x" data-obj-id="${obj.id}" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.x).toFixed(0)}">
+              <span class="slider-value-new">${THREE.MathUtils.radToDeg(obj.rotation.x).toFixed(0)}°</span>
+            </div>
+            <div class="new-transform-slider-group">
+              <span class="input-group-label" style="color: #10b981;">Y</span>
+              <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="y" data-obj-id="${obj.id}" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}">
+              <span class="slider-value-new">${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}°</span>
+            </div>
+            <div class="new-transform-slider-group">
+              <span class="input-group-label" style="color: #06b6d4;">Z</span>
+              <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="z" data-obj-id="${obj.id}" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}">
+              <span class="slider-value-new">${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}°</span>
+            </div>
+          </div>
+        </div>
+        <div class="transform-section">
+          <div class="transform-header">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+            </svg>
+            <span>Escala</span>
+          </div>
+          <div class="scale-slider-container">
+            <input type="range" class="scale-slider" data-obj-id="${obj.id}" min="0.1" max="5" step="0.1" value="${obj.scale.x.toFixed(1)}">
+            <span class="scale-value">${obj.scale.x.toFixed(1)}x</span>
+          </div>
+        </div>
+        <div class="transform-section">
+          <div class="transform-header">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+            </svg>
+            <span>Material</span>
+          </div>
+          <div class="material-controls">
+            <div class="material-slider-group">
+              <label class="material-label">Textura</label>
+              <div class="slider-container">
+                <input type="range" class="material-slider" data-obj-id="${obj.id}" data-property="roughness" min="0" max="1" step="0.01" value="${this.getMaterialProperty(obj, 'roughness', 0.4)}">
+                <span class="slider-value">${this.getMaterialProperty(obj, 'roughness', 0.4).toFixed(2)}</span>
+              </div>
+            </div>
+            <div class="material-slider-group">
+              <label class="material-label">Metálico</label>
+              <div class="slider-container">
+                <input type="range" class="material-slider" data-obj-id="${obj.id}" data-property="metalness" min="0" max="1" step="0.01" value="${this.getMaterialProperty(obj, 'metalness', 0.1)}">
+                <span class="slider-value">${this.getMaterialProperty(obj, 'metalness', 0.1).toFixed(2)}</span>
+              </div>
+            </div>
+            <div class="material-slider-group">
+              <label class="material-label">Brilho</label>
+              <div class="slider-container">
+                <input type="range" class="material-slider" data-obj-id="${obj.id}" data-property="emissiveIntensity" min="0" max="1" step="0.01" value="${this.getMaterialProperty(obj, 'emissiveIntensity', 0.05)}">
+                <span class="slider-value">${this.getMaterialProperty(obj, 'emissiveIntensity', 0.05).toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <button class="remove-object-btn-new" data-obj-id="${obj.id}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.58.22-2.365.468a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.576l.84-10.518.149.022a.75.75 0 10.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd" />
+          </svg>
+          <span>Remover</span>
+        </button>
+      </div>
+    `;
+
+    transformControls.appendChild(controlsContainer);
+
+    // Adicionar event listeners para os novos controles
+    this.addTransformControlListeners(controlsContainer, obj);
+  }
+
+  // Método para adicionar event listeners aos controles de transformação
+  addTransformControlListeners(container, obj) {
+    // Event listeners para sliders de transformação
+    container.querySelectorAll('.new-transform-slider').forEach(slider => {
+      slider.addEventListener('input', (e) => {
+        const transform = e.target.dataset.transform;
+        const axis = e.target.dataset.axis;
+        const value = parseFloat(e.target.value);
+        const valueDisplay = e.target.parentElement.querySelector('.slider-value-new');
+
+        if (transform === 'position') {
+          obj.position[axis] = value;
+          valueDisplay.textContent = value.toFixed(1);
+        } else if (transform === 'rotation') {
+          obj.rotation[axis] = THREE.MathUtils.degToRad(value);
+          valueDisplay.textContent = `${value.toFixed(0)}°`;
+        }
+        obj.updateTransform();
+
+        if (obj.selected && this.transformGizmo) {
+          this.transformGizmo.position.copy(obj.meshGroup.position);
+        }
+      });
+    });
+
+    // Event listener para sliders de escala
+    container.querySelectorAll('.scale-slider').forEach(slider => {
+      slider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        const valueDisplay = e.target.parentElement.querySelector('.scale-value');
+
+        obj.scale.x = value;
+        obj.scale.y = value;
+        obj.scale.z = value;
+        obj.updateTransform();
+        valueDisplay.textContent = `${value.toFixed(1)}x`;
+      });
+    });
+
+    // Event listener para sliders de material
+    container.querySelectorAll('.material-slider').forEach(slider => {
+      slider.addEventListener('input', (e) => {
+        const property = e.target.dataset.property;
+        const value = parseFloat(e.target.value);
+        const valueDisplay = e.target.parentElement.querySelector('.slider-value');
+
+        // Atualizar todas as meshes do objeto
+        obj.meshGroup.traverse((child) => {
+          if (child.isMesh && child.material) {
+            if (property === 'roughness') {
+              child.material.roughness = value;
+              valueDisplay.textContent = value.toFixed(2);
+            } else if (property === 'metalness') {
+              child.material.metalness = value;
+              valueDisplay.textContent = value.toFixed(2);
+            } else if (property === 'emissiveIntensity') {
+              child.material.emissiveIntensity = value;
+              valueDisplay.textContent = value.toFixed(2);
+            }
+          }
+        });
+      });
+    });
+
+    // Toggle para expandir/colapsar card
+    const header = container.querySelector('.card-header');
+    const body = container.querySelector('.card-body');
+    const toggleIcon = container.querySelector('.card-toggle-icon');
+
+    header.addEventListener('click', (e) => {
+      if (!e.target.closest('.remove-object-btn-new')) {
+        body.classList.toggle('collapsed');
+        toggleIcon.style.transform = body.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(180deg)';
       }
     });
 
-    return value;
+    // Event listener para remover objeto
+    container.querySelector('.remove-object-btn-new').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const objId = parseInt(e.target.closest('.remove-object-btn-new').dataset.objId);
+
+      if (confirm(`Tem certeza que deseja remover "${obj ? obj.name : 'este objeto'}"?`)) {
+        this.removeRoomObject(objId);
+        // Limpar controles quando objeto for removido
+        document.getElementById('transformControls').innerHTML = '';
+      }
+    });
   }
 
   // Método para atualizar sistemas (chamado no loop de renderização)
   update() {
     if (this.walkBuildModeSystem) {
       this.walkBuildModeSystem.update();
+    }
+  }
+
+  // Método auxiliar para obter propriedades de material
+  getMaterialProperty(obj, property, defaultValue) {
+    if (!obj || !obj.meshGroup) return defaultValue;
+
+    let firstMaterial = null;
+    obj.meshGroup.traverse((child) => {
+      if (child.isMesh && child.material && !firstMaterial) {
+        firstMaterial = child.material;
+      }
+    });
+
+    if (firstMaterial && firstMaterial[property] !== undefined) {
+      return firstMaterial[property];
+    }
+
+    return defaultValue;
+  }
+
+  // Método para atualizar o estado visual do botão do modo caminhar
+  updateWalkModeButtonState() {
+    if (!this.enterWalkModeBtn) return;
+
+    const isWalkModeActive = this.walkBuildModeSystem && this.walkBuildModeSystem.isActive;
+
+    if (isWalkModeActive) {
+      // Modo caminhar ativo - mostrar botão para sair
+      this.enterWalkModeBtn.classList.add('active');
+      this.enterWalkModeBtn.setAttribute('data-tooltip', 'Sair do Modo Caminhar (ESC)');
+
+      // Mostrar barra se walk mode estiver ativo (independente do room mode)
+      if (this.topBar) {
+        this.topBar.style.display = 'flex';
+      }
+    } else {
+      // Modo caminhar inativo - mostrar botão para entrar
+      this.enterWalkModeBtn.classList.remove('active');
+      this.enterWalkModeBtn.setAttribute('data-tooltip', 'Entrar no Modo Caminhar');
+
+      // Mostrar barra por padrão quando walk mode estiver inativo
+      if (this.topBar) {
+        this.topBar.style.display = 'flex';
+      }
     }
   }
 }

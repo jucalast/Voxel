@@ -24,11 +24,12 @@
 // =====================================================================
 
 export class WalkBuildModeSystem {
-  constructor(scene, camera, controls, roomModeSystem, editorFunctions = {}) {
+  constructor(scene, camera, controls, roomModeSystem, editorFunctions = {}, onStateChange = null) {
     this.scene = scene;
     this.originalCamera = camera;
     this.controls = controls;
     this.roomModeSystem = roomModeSystem;
+    this.onStateChange = onStateChange; // Callback para notificar mudanças de estado
 
     // Funções do editor para integração completa
     this.editorFunctions = {
@@ -217,6 +218,11 @@ export class WalkBuildModeSystem {
     // Iniciar loop de animação
     this.animate();
 
+    // Notificar mudança de estado
+    if (this.onStateChange) {
+      this.onStateChange(true);
+    }
+
     console.log('✅ Modo caminhada ativado - Controles estilo Minecraft: WASD mover, Shift correr, Espaço pular, Ctrl agachar, mouse olhar');
     console.log('🎮 Controles do numpad: 8=cima, 2=baixo, 4=esquerda, 6=direita, 5=reset, 7/9/1/3=diagonais');
   }
@@ -270,6 +276,11 @@ export class WalkBuildModeSystem {
     // Liberar ponteiro se estiver bloqueado
     if (document.pointerLockElement) {
       document.exitPointerLock();
+    }
+
+    // Notificar mudança de estado
+    if (this.onStateChange) {
+      this.onStateChange(false);
     }
 
     console.log('✅ Modo caminhada desativado - retornando aos controles normais');
