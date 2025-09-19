@@ -722,8 +722,14 @@ export class RoomModeSystem {
       console.log('🎭 Room panel mostrado automaticamente ao carregar objeto');
     }
 
-    // Adicionar controles de transformação diretamente no room-content
-    this.addTransformControls(roomObject);
+    // Ativar automaticamente o modo sala quando o primeiro objeto é carregado
+    if (!this.isRoomMode && this.roomObjects.length === 1) {
+      console.log('🎭 Ativando modo sala automaticamente ao carregar primeiro objeto');
+      this.enterRoomMode();
+      
+      // Atualizar estado do botão do modo caminhada após ativar o modo sala
+      this.updateWalkModeButtonState();
+    }
 
     this.updateRoomObjectsList();
 
@@ -754,99 +760,32 @@ export class RoomModeSystem {
           </svg>
         </div>
         <div class="card-body">
-          <div class="transform-section">
-            <div class="transform-header">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clip-rule="evenodd" />
-              </svg>
-              <span>Posição</span>
+          <div class="object-info">
+            <div class="info-item">
+              <span class="info-label">Posição:</span>
+              <span class="info-value">${obj.position.x.toFixed(1)}, ${obj.position.y.toFixed(1)}, ${obj.position.z.toFixed(1)}</span>
             </div>
-            <div class="new-transform-inputs">
-              <div class="new-transform-slider-group">
-                <span class="input-group-label" style="color: #ef4444;">X</span>
-                <input type="range" class="new-transform-slider" data-transform="position" data-axis="x" min="-20" max="20" step="0.1" value="${obj.position.x.toFixed(1)}">
-                <span class="slider-value-new">${obj.position.x.toFixed(1)}</span>
-              </div>
-              <div class="new-transform-slider-group">
-                <span class="input-group-label" style="color: #10b981;">Y</span>
-                <input type="range" class="new-transform-slider" data-transform="position" data-axis="y" min="-20" max="20" step="0.1" value="${obj.position.y.toFixed(1)}">
-                <span class="slider-value-new">${obj.position.y.toFixed(1)}</span>
-              </div>
-              <div class="new-transform-slider-group">
-                <span class="input-group-label" style="color: #06b6d4;">Z</span>
-                <input type="range" class="new-transform-slider" data-transform="position" data-axis="z" min="-20" max="20" step="0.1" value="${obj.position.z.toFixed(1)}">
-                <span class="slider-value-new">${obj.position.z.toFixed(1)}</span>
-              </div>
+            <div class="info-item">
+              <span class="info-label">Rotação:</span>
+              <span class="info-value">${THREE.MathUtils.radToDeg(obj.rotation.x).toFixed(0)}°, ${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}°, ${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}°</span>
             </div>
-          </div>
-          <div class="transform-section">
-            <div class="transform-header">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M4.5 2A2.5 2.5 0 002 4.5v3A2.5 2.5 0 004.5 10h.615l.788 5.5H6a1 1 0 001 1h6a1 1 0 001-1h-.693l.788-5.5H15.5A2.5 2.5 0 0018 7.5v-3A2.5 2.5 0 0015.5 2h-11zM6.25 14.5a1.25 1.25 0 11-2.5 0 1.25 1.25 0 012.5 0zm7.5 0a1.25 1.25 0 11-2.5 0 1.25 1.25 0 012.5 0z" clip-rule="evenodd" />
-              </svg>
-              <span>Rotação</span>
+            <div class="info-item">
+              <span class="info-label">Escala:</span>
+              <span class="info-value">${obj.scale.x.toFixed(1)}x</span>
             </div>
-            <div class="new-transform-inputs">
-              <div class="new-transform-slider-group">
-                <span class="input-group-label" style="color: #ef4444;">X</span>
-                <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="x" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.x).toFixed(0)}">
-                <span class="slider-value-new">${THREE.MathUtils.radToDeg(obj.rotation.x).toFixed(0)}°</span>
-              </div>
-              <div class="new-transform-slider-group">
-                <span class="input-group-label" style="color: #10b981;">Y</span>
-                <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="y" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}°</span>
-              </div>
-              <div class="new-transform-slider-group">
-                <span class="input-group-label" style="color: #06b6d4;">Z</span>
-                <input type="range" class="new-transform-slider" data-transform="rotation" data-axis="z" min="0" max="360" step="1" value="${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}°</span>
-              </div>
-            </div>
-          </div>
-          <div class="transform-section">
-            <div class="transform-header">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-              </svg>
-              <span>Escala</span>
-            </div>
-            <div class="scale-slider-container">
-              <input type="range" class="scale-slider" data-obj-id="${obj.id}" min="0.1" max="5" step="0.1" value="${obj.scale.x.toFixed(1)}">
-              <span class="scale-value">${obj.scale.x.toFixed(1)}x</span>
-            </div>
-          </div>
-          <div class="transform-section">
-            <div class="transform-header">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
-              </svg>
-              <span>Material</span>
-            </div>
-            <div class="material-controls">
-              <div class="material-slider-group">
-                <label class="material-label">Textura</label>
-                <div class="slider-container">
-                  <input type="range" class="material-slider" data-obj-id="${obj.id}" data-property="roughness" min="0" max="1" step="0.01" value="${this.getMaterialProperty(obj, 'roughness', 0.4)}">
-                  <span class="slider-value">${this.getMaterialProperty(obj, 'roughness', 0.4).toFixed(2)}</span>
-                </div>
-              </div>
-              <div class="material-slider-group">
-                <label class="material-label">Metálico</label>
-                <div class="slider-container">
-                  <input type="range" class="material-slider" data-obj-id="${obj.id}" data-property="metalness" min="0" max="1" step="0.01" value="${this.getMaterialProperty(obj, 'metalness', 0.1)}">
-                  <span class="slider-value">${this.getMaterialProperty(obj, 'metalness', 0.1).toFixed(2)}</span>
-                </div>
-              </div>
-              <div class="material-slider-group">
-                <label class="material-label">Brilho</label>
-                <div class="slider-container">
-                  <input type="range" class="material-slider" data-obj-id="${obj.id}" data-property="emissiveIntensity" min="0" max="1" step="0.01" value="${this.getMaterialProperty(obj, 'emissiveIntensity', 0.05)}">
-                  <span class="slider-value">${this.getMaterialProperty(obj, 'emissiveIntensity', 0.05).toFixed(2)}</span>
-                </div>
-              </div>
+            <div class="info-item">
+              <span class="info-label">Voxels:</span>
+              <span class="info-value">${obj.voxelData ? obj.voxelData.length : 0}</span>
             </div>
           </div>
         </div>
         <div class="card-footer">
+          <button class="select-object-btn" data-obj-id="${obj.id}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clip-rule="evenodd" />
+            </svg>
+            <span>Controlar</span>
+          </button>
           <button class="remove-object-btn-new" data-obj-id="${obj.id}">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.58.22-2.365.468a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.576l.84-10.518.149.022a.75.75 0 10.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd" />
@@ -858,90 +797,33 @@ export class RoomModeSystem {
       this.roomObjectsList.appendChild(objDiv);
     });
 
-    // Adicionar event listeners para sliders de transformação
-    this.roomObjectsList.querySelectorAll('.new-transform-slider').forEach(slider => {
-      slider.addEventListener('input', (e) => {
-        const objId = parseInt(e.target.closest('.room-object-card').dataset.objectId || e.target.dataset.objId);
-        const transform = e.target.dataset.transform;
-        const axis = e.target.dataset.axis;
-        const value = parseFloat(e.target.value);
-        const valueDisplay = e.target.parentElement.querySelector('.slider-value-new');
-
-        const obj = this.roomObjects.find(o => o.id === objId);
-        if (obj) {
-          if (transform === 'position') {
-            obj.position[axis] = value;
-            valueDisplay.textContent = value.toFixed(1);
-          } else if (transform === 'rotation') {
-            obj.rotation[axis] = THREE.MathUtils.degToRad(value);
-            valueDisplay.textContent = `${value.toFixed(0)}°`;
-          }
-          obj.updateTransform();
-
-          if (obj.selected && this.transformGizmo) {
-            this.transformGizmo.position.copy(obj.meshGroup.position);
-          }
-        }
-      });
-    });
-
-    // Event listener para sliders de escala
-    this.roomObjectsList.querySelectorAll('.scale-slider').forEach(slider => {
-      slider.addEventListener('input', (e) => {
-        const objId = parseInt(e.target.dataset.objId);
-        const value = parseFloat(e.target.value);
-        const valueDisplay = e.target.parentElement.querySelector('.scale-value');
-
-        const obj = this.roomObjects.find(o => o.id === objId);
-        if (obj) {
-          obj.scale.x = value;
-          obj.scale.y = value;
-          obj.scale.z = value;
-          obj.updateTransform();
-          valueDisplay.textContent = `${value.toFixed(1)}x`;
-        }
-      });
-    });
-
-    // Event listener para sliders de material
-    this.roomObjectsList.querySelectorAll('.material-slider').forEach(slider => {
-      slider.addEventListener('input', (e) => {
-        const objId = parseInt(e.target.dataset.objId);
-        const property = e.target.dataset.property;
-        const value = parseFloat(e.target.value);
-        const valueDisplay = e.target.parentElement.querySelector('.slider-value');
-
-        const obj = this.roomObjects.find(o => o.id === objId);
-        if (obj) {
-          // Atualizar todas as meshes do objeto
-          obj.meshGroup.traverse((child) => {
-            if (child.isMesh && child.material) {
-              if (property === 'roughness') {
-                child.material.roughness = value;
-                valueDisplay.textContent = value.toFixed(2);
-              } else if (property === 'metalness') {
-                child.material.metalness = value;
-                valueDisplay.textContent = value.toFixed(2);
-              } else if (property === 'emissiveIntensity') {
-                child.material.emissiveIntensity = value;
-                valueDisplay.textContent = value.toFixed(2);
-              }
-            }
-          });
-        }
-      });
-    });
-
     // Toggle para expandir/colapsar cards
     this.roomObjectsList.querySelectorAll('.card-header').forEach(header => {
       header.addEventListener('click', (e) => {
-        if (!e.target.closest('.remove-object-btn-new')) {
+        if (!e.target.closest('.remove-object-btn-new') && !e.target.closest('.select-object-btn')) {
           const card = header.parentElement;
           const body = card.querySelector('.card-body');
           const toggleIcon = header.querySelector('.card-toggle-icon');
 
           body.classList.toggle('collapsed');
           toggleIcon.style.transform = body.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+      });
+    });
+
+    // Event listener para selecionar objeto para controle
+    this.roomObjectsList.querySelectorAll('.select-object-btn').forEach(button => {
+      button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const objId = parseInt(e.target.closest('.select-object-btn').dataset.objId);
+        const obj = this.roomObjects.find(o => o.id === objId);
+        if (obj) {
+          // Desmarcar todos os objetos
+          this.roomObjects.forEach(o => o.selected = false);
+          // Marcar o objeto selecionado
+          obj.selected = true;
+          // Adicionar controles de transformação
+          this.addTransformControls(obj);
         }
       });
     });
@@ -975,7 +857,7 @@ export class RoomModeSystem {
 
       // Limpar controles de transformação se o objeto removido era o que estava sendo controlado
       const transformControls = document.getElementById('transformControls');
-      if (transformControls && this.roomObjects.length === 0) {
+      if (transformControls && obj.selected) {
         transformControls.innerHTML = '';
       }
     }
@@ -1167,10 +1049,10 @@ export class RoomModeSystem {
 
         if (transform === 'position') {
           obj.position[axis] = value;
-          valueDisplay.textContent = value.toFixed(1);
+          if (valueDisplay) valueDisplay.textContent = value.toFixed(1);
         } else if (transform === 'rotation') {
           obj.rotation[axis] = THREE.MathUtils.degToRad(value);
-          valueDisplay.textContent = `${value.toFixed(0)}°`;
+          if (valueDisplay) valueDisplay.textContent = `${value.toFixed(0)}°`;
         }
         obj.updateTransform();
 
@@ -1190,7 +1072,7 @@ export class RoomModeSystem {
         obj.scale.y = value;
         obj.scale.z = value;
         obj.updateTransform();
-        valueDisplay.textContent = `${value.toFixed(1)}x`;
+        if (valueDisplay) valueDisplay.textContent = `${value.toFixed(1)}x`;
       });
     });
 
@@ -1206,13 +1088,13 @@ export class RoomModeSystem {
           if (child.isMesh && child.material) {
             if (property === 'roughness') {
               child.material.roughness = value;
-              valueDisplay.textContent = value.toFixed(2);
+              if (valueDisplay) valueDisplay.textContent = value.toFixed(2);
             } else if (property === 'metalness') {
               child.material.metalness = value;
-              valueDisplay.textContent = value.toFixed(2);
+              if (valueDisplay) valueDisplay.textContent = value.toFixed(2);
             } else if (property === 'emissiveIntensity') {
               child.material.emissiveIntensity = value;
-              valueDisplay.textContent = value.toFixed(2);
+              if (valueDisplay) valueDisplay.textContent = value.toFixed(2);
             }
           }
         });
@@ -1278,7 +1160,7 @@ export class RoomModeSystem {
     if (isWalkModeActive) {
       // Modo caminhar ativo - mostrar botão para sair
       this.enterWalkModeBtn.classList.add('active');
-      this.enterWalkModeBtn.setAttribute('data-tooltip', 'Sair do Modo Caminhar (ESC)');
+      this.enterWalkModeBtn.removeAttribute('data-tooltip');
 
       // Mostrar barra se walk mode estiver ativo (independente do room mode)
       if (this.topBar) {

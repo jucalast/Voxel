@@ -52,8 +52,8 @@ function initEditor() {
   const removeRefBtn = document.getElementById('floating-remove-btn');
   const floatingReferencePanel = document.getElementById('floating-reference');
 
-  // Elemento do botão de modo câmera
-  const cameraModeBtn = document.getElementById('cameraModeBtn');
+  // Elemento do botão de modo câmera (REMOVIDO)
+  // const cameraModeBtn = document.getElementById('cameraModeBtn');
 
   console.log('Elementos DOM carregados');  // =====================================================================
   // INICIALIZAÇÃO DOS MÓDULOS
@@ -102,6 +102,22 @@ function initEditor() {
 
       console.log(`✅ ${validVoxels.length} voxels válidos encontrados`);
 
+      // Verificar se devemos tratar como objeto de sala
+      const shouldTreatAsRoomObject = roomModeSystem && (roomModeSystem.isRoomMode || confirm(`Carregar como objeto de sala? Isso permitirá controlar o objeto como uma unidade.`));
+
+      if (shouldTreatAsRoomObject) {
+        console.log('🏠 Tratando como objeto de sala');
+        // Ativar modo sala se necessário
+        if (!roomModeSystem.isRoomMode) {
+          roomModeSystem.enterRoomMode();
+        }
+        // Usar o callback de objeto de sala
+        roomModeSystem.addRoomObject(validVoxels, filename);
+        console.log(`✅ Objeto de sala "${filename}" criado com sucesso!`);
+        return;
+      }
+
+      // Modo tradicional: adicionar voxels individuais
       // Perguntar confirmação ao usuário
       const shouldLoad = confirm(`Carregar ${validVoxels.length} voxels de "${filename}"? Isso irá substituir a cena atual.`);
 
@@ -111,6 +127,12 @@ function initEditor() {
       }
 
       try {
+        // Ativar automaticamente o modo sala antes de carregar os voxels
+        if (roomModeSystem && !roomModeSystem.isRoomMode) {
+          console.log('🎭 Ativando modo sala automaticamente para carregamento de voxels');
+          roomModeSystem.enterRoomMode();
+        }
+
         // Limpar cena atual
         clearScene();
         console.log('🧹 Cena limpa para novo carregamento');
@@ -131,6 +153,12 @@ function initEditor() {
 
         console.log(`✅ Carregamento concluído: ${addedCount} voxels adicionados de "${filename}"`);
         console.log(`📈 Total de voxels na cena: ${voxels.length}`);
+
+        // Se estamos no modo sala, atualizar a lista de objetos da sala
+        if (roomModeSystem && roomModeSystem.isRoomMode) {
+          console.log('🏠 Modo sala ativo - atualizando lista de objetos da sala');
+          roomModeSystem.updateRoomObjectsList();
+        }
 
         // Atualizar contador de voxels
         updateVoxelCount();
@@ -160,13 +188,8 @@ function initEditor() {
       try {
         // Verificar se estamos no modo sala
         if (!roomModeSystem || !roomModeSystem.isRoomMode) {
-          const enterRoomMode = confirm(`Para carregar objetos da sala, você precisa estar no modo sala. Entrar no modo sala agora?`);
-          if (enterRoomMode) {
-            roomModeSystem.toggleRoomMode();
-          } else {
-            console.log('❌ Usuário cancelou entrada no modo sala');
-            return;
-          }
+          console.log('🏠 Ativando automaticamente o modo sala para carregar objeto');
+          roomModeSystem.toggleRoomMode();
         }
 
         // Carregar objeto da sala
@@ -317,8 +340,8 @@ function initEditor() {
   // CONTROLES DE CÂMERA E GRADE
   // =====================================================================
 
-  // Sistema de modos de câmera
-  let cameraMode = 'orbit'; // 'orbit' ou 'walk'
+  // Sistema de modos de câmera (REMOVIDO - botão removido)
+  // let cameraMode = 'orbit'; // 'orbit' ou 'walk'
   let walkBuildModeSystem;
 
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -334,7 +357,8 @@ function initEditor() {
     RIGHT: THREE.MOUSE.PAN
   };
 
-  // Função para alternar modo de câmera
+  // Função para alternar modo de câmera (REMOVIDA - botão removido)
+  /*
   function toggleCameraMode() {
     if (walkBuildModeSystem && walkBuildModeSystem.isActive) {
       walkBuildModeSystem.exitWalkMode();
@@ -360,6 +384,7 @@ function initEditor() {
       console.log('🚶 Modo caminhada e construção ativado');
     }
   }
+  */
 
   // Grade
   const gridHelper = new THREE.GridHelper(50, 50, 0x333366, 0x1a1a2e);
@@ -570,7 +595,10 @@ function initEditor() {
 
   if (menuBtn) {
     menuBtn.onclick = () => {
-      // REMOVED: Close room objects sidebar if open
+      // Fechar sidebar de histórico se estiver aberto
+      if (uploadHistorySidebar && uploadHistorySidebar.classList.contains('show')) {
+        closeUploadHistorySidebar();
+      }
 
       // Verificar se estamos no modo sala
       if (roomModeSystem && roomModeSystem.isRoomMode) {
@@ -581,7 +609,7 @@ function initEditor() {
         // Modo normal do editor
         leftPanel.classList.toggle('show');
       }
-      
+
       // Mover barra de ferramentas baseado no estado do painel
       if (leftPanel.classList.contains('show')) {
         // Painel aberto: mover barra para a direita do painel
@@ -2117,56 +2145,6 @@ function initEditor() {
     }
   }
 
-  // Conectar botão da barra flutuante ao modo caminhada
-  const walkModeBtn = document.getElementById('walkModeBtn');
-  if (walkModeBtn) {
-    walkModeBtn.addEventListener('click', () => {
-      console.log('🚶 Botão Modo Caminhada clicado!');
-
-      // Verificar se o sistema de caminhada está disponível
-      if (roomModeSystem && roomModeSystem.walkBuildModeSystem) {
-        const walkSystem = roomModeSystem.walkBuildModeSystem;
-
-        if (walkSystem.isActive) {
-          // Está ativo, desativar
-          walkSystem.exitWalkMode();
-          walkModeBtn.classList.remove('active');
-          walkModeBtn.innerHTML = `
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M13.5 6.5V12m0 0v5.5m0-5.5h-7m7 0h7"/>
-              <path d="M9.5 12H7.5m2 0v2.5m0-2.5v-2.5"/>
-              <path d="M16.5 12h2m-2 0v2.5m0-2.5v-2.5"/>
-              <circle cx="12" cy="7" r="1"/>
-            </svg>
-            <span>Modo Caminhada</span>
-          `;
-          console.log('🚶 Modo caminhada desativado via botão');
-        } else {
-          // Não está ativo, ativar
-          walkSystem.enterWalkMode();
-          walkModeBtn.classList.add('active');
-          walkModeBtn.innerHTML = `
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M13.5 6.5V12m0 0v5.5m0-5.5h-7m7 0h7"/>
-              <path d="M9.5 12H7.5m2 0v2.5m0-2.5v-2.5"/>
-              <path d="M16.5 12h2m-2 0v2.5m0-2.5v-2.5"/>
-              <circle cx="12" cy="7" r="1"/>
-            </svg>
-            <span>Sair da Caminhada</span>
-          `;
-          console.log('🚶 Modo caminhada ativado via botão');
-        }
-      } else {
-        console.warn('⚠️ Sistema de caminhada não disponível');
-        alert('Sistema de caminhada não está disponível. Certifique-se de que o modo sala ambiente está ativo.');
-      }
-    });
-
-    console.log('✅ Botão da barra flutuante conectado ao sistema de caminhada');
-  } else {
-    console.warn('⚠️ Botão walkModeBtn não encontrado no DOM');
-  }
-
   // =====================================================================
   // LOOP DE RENDERIZAÇÃO
   // =====================================================================
@@ -3119,6 +3097,9 @@ function initEditor() {
     if (uploadHistorySidebar) {
       uploadHistorySidebar.classList.remove('show');
       console.log('📂 Sidebar de histórico de uploads fechado');
+
+      // Resetar posição da barra de ferramentas
+      iconToolbar.style.left = '10px';
     }
   }
 
@@ -3211,7 +3192,7 @@ function initEditor() {
     const item = uploadHistory.find(item => item.id === id);
     if (!item) return;
 
-    console.log(`🔄 Recarregando "${item.filename}" do histórico`);
+    console.log(`🔄 Recarregando "${item.filename}" do histórico (tipo: ${item.type})`);
 
     // Perguntar confirmação
     const shouldLoad = confirm(`Recarregar "${item.filename}" (${item.voxelCount} voxels)? Isso irá substituir a cena atual.`);
@@ -3222,15 +3203,23 @@ function initEditor() {
       // Limpar cena atual
       clearScene();
 
-      // Adicionar voxels
-      item.data.forEach(voxel => {
-        addVoxel(voxel.x, voxel.y, voxel.z, voxel.color, false);
-      });
+      if (item.type === 'roomObject') {
+        // Se for um objeto de sala, usar o callback apropriado
+        if (roomModeSystem && !roomModeSystem.isRoomMode) {
+          roomModeSystem.enterRoomMode();
+        }
+        roomModeSystem.addRoomObject(item.data, item.filename);
+        console.log(`✅ Objeto de sala "${item.filename}" recarregado com sucesso`);
+      } else {
+        // Para voxels normais, adicionar individualmente
+        item.data.forEach(voxel => {
+          addVoxel(voxel.x, voxel.y, voxel.z, voxel.color, false);
+        });
+        console.log(`✅ Arquivo "${item.filename}" recarregado com sucesso`);
+      }
 
       // Salvar estado
       saveState();
-
-      console.log(`✅ Arquivo "${item.filename}" recarregado com sucesso`);
       updateVoxelCount();
 
       // Fechar sidebar
@@ -3260,10 +3249,29 @@ function initEditor() {
 
   // Event listeners para o sidebar
   if (uploadHistoryBtn) {
-    uploadHistoryBtn.addEventListener('click', openUploadHistorySidebar);
-  }
+    uploadHistoryBtn.addEventListener('click', () => {
+      // Fechar color sidebar se estiver aberto
+      if (leftPanel && leftPanel.classList.contains('show')) {
+        leftPanel.classList.remove('show');
+      }
 
-  if (uploadHistoryClose) {
+      // Toggle do sidebar de histórico
+      if (uploadHistorySidebar.classList.contains('show')) {
+        closeUploadHistorySidebar();
+      } else {
+        openUploadHistorySidebar();
+      }
+
+      // Mover barra de ferramentas baseado no estado do sidebar
+      if (uploadHistorySidebar.classList.contains('show')) {
+        // Sidebar aberto: mover barra para a direita do sidebar
+        iconToolbar.style.left = '365px'; // 55px (nova posição do sidebar) + 320px (largura) + 20px (espaço para barra maior)
+      } else {
+        // Sidebar fechado: voltar barra para posição original
+        iconToolbar.style.left = '10px';
+      }
+    });
+  }  if (uploadHistoryClose) {
     uploadHistoryClose.addEventListener('click', closeUploadHistorySidebar);
   }
 
@@ -3278,8 +3286,14 @@ function initEditor() {
         // Processar múltiplos arquivos se selecionados
         Array.from(files).forEach(file => {
           if (fileUploadSystem) {
+            // Determinar o tipo de callback baseado no modo atual
+            const isRoomMode = roomModeSystem && roomModeSystem.isRoomMode;
+            const callbackType = isRoomMode ? 'roomObject' : 'voxel';
+            
+            console.log(`📁 Processando arquivo no modo ${isRoomMode ? 'sala' : 'editor'}: ${callbackType}`);
+            
             // Simular o comportamento do handleFileChange
-            fileUploadSystem.currentCallbackType = 'voxel';
+            fileUploadSystem.currentCallbackType = callbackType;
             const fakeEvent = { target: { files: [file] } };
             fileUploadSystem.handleFileChange(fakeEvent);
           }
@@ -3302,6 +3316,8 @@ function initEditor() {
 
   // Atualizar callbacks do sistema de upload para incluir histórico
   const originalOnVoxelDataLoaded = fileUploadSystem.callbacks.onVoxelDataLoaded;
+  const originalOnRoomObjectLoaded = fileUploadSystem.callbacks.onRoomObjectLoaded;
+  
   fileUploadSystem.setCallbacks({
     ...fileUploadSystem.callbacks,
     onVoxelDataLoaded: (voxelData, filename) => {
@@ -3310,6 +3326,13 @@ function initEditor() {
 
       // Adicionar ao histórico
       addToUploadHistory(voxelData, filename, 'voxel');
+    },
+    onRoomObjectLoaded: (voxelData, filename) => {
+      // Chamar callback original
+      originalOnRoomObjectLoaded(voxelData, filename);
+
+      // Adicionar ao histórico
+      addToUploadHistory(voxelData, filename, 'roomObject');
     }
   });
 
