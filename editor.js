@@ -29,6 +29,7 @@ function initEditor() {
   const voxelCount = document.getElementById('voxelCount');
   const testBtn = document.getElementById('testBtn');
   const menuBtn = document.getElementById('menuBtn');
+  const tutorialBtn = document.getElementById('tutorialBtn');
   const leftPanel = document.getElementById('left-panel');
   const iconToolbar = document.getElementById('icon-toolbar');
   
@@ -102,15 +103,11 @@ function initEditor() {
 
       console.log(`✅ ${validVoxels.length} voxels válidos encontrados`);
 
-      // Verificar se devemos tratar como objeto de sala
-      const shouldTreatAsRoomObject = roomModeSystem && (roomModeSystem.isRoomMode || confirm(`Carregar como objeto de sala? Isso permitirá controlar o objeto como uma unidade.`));
+      // Verificar se estamos no modo sala - APENAS tratar como objeto de sala se já estivermos no modo sala
+      const isCurrentlyInRoomMode = roomModeSystem && roomModeSystem.isRoomMode;
 
-      if (shouldTreatAsRoomObject) {
-        console.log('🏠 Tratando como objeto de sala');
-        // Ativar modo sala se necessário
-        if (!roomModeSystem.isRoomMode) {
-          roomModeSystem.enterRoomMode();
-        }
+      if (isCurrentlyInRoomMode) {
+        console.log('🏠 Estamos no room mode - tratando como objeto de sala');
         // Usar o callback de objeto de sala
         roomModeSystem.addRoomObject(validVoxels, filename);
         console.log(`✅ Objeto de sala "${filename}" criado com sucesso!`);
@@ -127,11 +124,8 @@ function initEditor() {
       }
 
       try {
-        // Ativar automaticamente o modo sala antes de carregar os voxels
-        if (roomModeSystem && !roomModeSystem.isRoomMode) {
-          console.log('🎭 Ativando modo sala automaticamente para carregamento de voxels');
-          roomModeSystem.enterRoomMode();
-        }
+        // Modo editor: carregar voxels diretamente na cena sem ativar room mode
+        console.log('🎨 Carregando voxels no modo editor - mantendo modo atual');
 
         // Limpar cena atual
         clearScene();
@@ -156,8 +150,12 @@ function initEditor() {
 
         // Se estamos no modo sala, atualizar a lista de objetos da sala
         if (roomModeSystem && roomModeSystem.isRoomMode) {
-          console.log('🏠 Modo sala ativo - atualizando lista de objetos da sala');
-          roomModeSystem.updateRoomObjectsList();
+          console.log('🏠 Modo sala ativo - controles de transformação atualizados');
+          // Always show transform controls for the selected object or the first object if none selected
+          const selectedObj = roomModeSystem.roomObjects.find(obj => obj.selected) || roomModeSystem.roomObjects[0];
+          if (selectedObj) {
+            roomModeSystem.addTransformControls(selectedObj);
+          }
         }
 
         // Atualizar contador de voxels
@@ -169,7 +167,8 @@ function initEditor() {
       }
     },
     onRoomObjectLoaded: (voxelData, filename) => {
-      console.log('🏠 onRoomObjectLoaded chamado com:', { voxelDataLength: voxelData?.length, filename });
+      const currentMode = roomModeSystem && roomModeSystem.isRoomMode ? 'room' : 'editor';
+      console.log(`🏠 onRoomObjectLoaded chamado no modo ${currentMode} com:`, { voxelDataLength: voxelData?.length, filename });
 
       if (!voxelData || !Array.isArray(voxelData)) {
         alert(`Erro: Dados de objeto inválidos no arquivo "${filename}".`);
@@ -183,13 +182,13 @@ function initEditor() {
         return;
       }
 
-      console.log(`📦 Carregando objeto da sala "${filename}" com ${voxelData.length} voxels`);
+      console.log(`📦 Carregando objeto da sala "${filename}" com ${voxelData.length} voxels no modo ${currentMode}`);
 
       try {
-        // Verificar se estamos no modo sala
+        // Verificar se estamos no modo sala - NÃO ativar automaticamente
         if (!roomModeSystem || !roomModeSystem.isRoomMode) {
-          console.log('🏠 Ativando automaticamente o modo sala para carregar objeto');
-          roomModeSystem.toggleRoomMode();
+          console.log('⚠️ Upload de objeto da sala detectado, mas não estamos no room mode');
+          console.log('💡 O objeto será adicionado à lista mas não será visível até ativar o room mode');
         }
 
         // Carregar objeto da sala
@@ -220,6 +219,24 @@ function initEditor() {
     opacityBtn, 
     removeRefBtn
   );
+
+  // --- New Voxel Uploader Logic ---
+  const roomVoxelFileInput = document.getElementById('voxel-file-input');
+
+  if (roomVoxelFileInput && fileUploadSystem) {
+    // Handle file selection via the hidden input
+    roomVoxelFileInput.addEventListener('change', (event) => {
+        // Determinar o tipo de callback baseado no modo atual
+        const isRoomMode = roomModeSystem && roomModeSystem.isRoomMode;
+        const callbackType = isRoomMode ? 'roomObject' : 'voxel';
+        
+        console.log(`📁 Upload via room panel - Modo detectado: ${isRoomMode ? 'SALA' : 'EDITOR'} → Callback: ${callbackType}`);
+        
+        fileUploadSystem.currentCallbackType = callbackType;
+        fileUploadSystem.handleFileChange(event);
+    });
+  }
+  // --- End of New Voxel Uploader Logic ---
 
   // Sistema de IA removido
 
@@ -482,17 +499,50 @@ function initEditor() {
     }
     
     const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const material = new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.4,        // Reduzido para mais brilho/reflexão
-      metalness: 0.1,        // Levemente metálico para melhor definição
-      emissive: new THREE.Color(color).multiplyScalar(0.05), // Emissão sutil para melhor visibilidade
-      emissiveIntensity: 0.1
-    });
+    
+    // Verificar se há sistema de texturas e textura selecionada
+    let material;
+    if (window.textureSystem && window.textureSystem.getCurrentTexture()) {
+      const currentTexture = window.textureSystem.getCurrentTexture();
+      
+      if (window.textureSystem.textureMode === 'single') {
+        // Textura única em todas as faces
+        material = window.textureSystem.createTexturedMaterial(currentTexture, {
+          roughness: 0.4,
+          metalness: 0.1
+        });
+      } else {
+        // Modo por face - usar textura atual em todas as faces por enquanto
+        const materials = window.textureSystem.createVoxelMaterials({
+          all: currentTexture
+        });
+        material = materials;
+      }
+      
+      console.log(`🎨 Voxel criado com textura: ${currentTexture}`);
+    } else {
+      // Material padrão sem textura
+      material = new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.4,
+        metalness: 0.1,
+        emissive: new THREE.Color(color).multiplyScalar(0.05),
+        emissiveIntensity: 0.1
+      });
+    }
 
-    // Adicionar bordas sutis para melhor definição dos voxels
-    material.transparent = true;
-    material.opacity = 0.95;
+    // Garantir que o material seja completamente sólido
+    if (Array.isArray(material)) {
+      // Para materiais múltiplos (texturas por face)
+      material.forEach(mat => {
+        mat.transparent = false;
+        mat.opacity = 1.0;
+      });
+    } else {
+      // Para material único
+      material.transparent = false;
+      material.opacity = 1.0;
+    }
 
     console.log(`🎨 Material otimizado criado para voxel: ${color.toString(16)}`);
     
@@ -610,16 +660,12 @@ function initEditor() {
         leftPanel.classList.toggle('show');
       }
 
-      // Mover barra de ferramentas baseado no estado do painel
-      if (leftPanel.classList.contains('show')) {
-        // Painel aberto: mover barra para a direita do painel
-        iconToolbar.style.left = '345px'; // 55px (nova posição do painel) + 300px (largura) + 20px (espaço para barra maior)
-      } else {
-        // Painel fechado: voltar barra para posição original
-        iconToolbar.style.left = '10px';
-      }
+      // Atualizar posição da barra de ferramentas considerando todos os estados
+      updateToolbarPosition();
     };
   }
+
+  // Botão de tutorial será configurado após definição das funções
 
   // Sistema de ajuda
   if (helpButton) {
@@ -1822,7 +1868,7 @@ function initEditor() {
     if (selectedVoxels.has(voxel)) {
       selectedVoxels.delete(voxel);
       removeSelectionHighlight(voxel);
-      console.log(`➖ Voxel desmarcado. Total: ${selectedVoxels.size}`);
+      console.log(`➖ Voxel desselecionado. Total: ${selectedVoxels.size}`);
     } else {
       selectedVoxels.add(voxel);
       addSelectionHighlight(voxel);
@@ -2093,9 +2139,12 @@ function initEditor() {
 
   // Criar instância do sistema de modo sala
   const roomModeSystem = new window.RoomModeSystem(scene, camera, controls, updateCursor, renderer);
+  
+  // Expor globalmente para acesso em tutoriais
+  window.roomModeSystem = roomModeSystem;
 
   // Configurar variáveis do editor no sistema de sala
-  roomModeSystem.setEditorVars(distance, angleX, angleY);
+  roomModeSystem.setEditorVars(distance, angleX, angleY, voxels);
 
   // Inicializar event listeners do sistema de sala
   roomModeSystem.init();
@@ -2755,7 +2804,7 @@ function initEditor() {
         
         // Destacar handle sob o mouse
         if (intersect && intersect.object && intersect.object.userData.isResizeHandle) {
-          console.log('✅ HANDLE DETECTADO NO HOVER!', intersect.object.userData);
+          console.log('🎯 HANDLE DETECTADO - DESTACANDO!');
           intersect.object.material.color.setHex(0xffffff);
           intersect.object.material.opacity = 1.0;
           intersect.object.material.emissiveIntensity = 0.4;
@@ -3092,14 +3141,34 @@ function initEditor() {
     }
   }
 
+  // Função centralizada para atualizar posição do toolbar
+  function updateToolbarPosition() {
+    if (!iconToolbar) return;
+    
+    // Prioridade: Sidebar > Left Panel > Posição padrão
+    if (uploadHistorySidebar && uploadHistorySidebar.classList.contains('show')) {
+      // Sidebar aberto: mover barra para a direita do sidebar
+      iconToolbar.style.left = '365px';
+    } else if (leftPanel && leftPanel.classList.contains('show')) {
+      // Painel esquerdo aberto: mover barra para a direita do painel
+      iconToolbar.style.left = '345px';
+    } else {
+      // Posição padrão
+      iconToolbar.style.left = '10px';
+    }
+  }
+  
+  // Expor função globalmente para uso pelo roomMode.js
+  window.updateToolbarPosition = updateToolbarPosition;
+
   // Função para fechar o sidebar de histórico
   function closeUploadHistorySidebar() {
     if (uploadHistorySidebar) {
       uploadHistorySidebar.classList.remove('show');
       console.log('📂 Sidebar de histórico de uploads fechado');
 
-      // Resetar posição da barra de ferramentas
-      iconToolbar.style.left = '10px';
+      // Atualizar posição da barra de ferramentas considerando todos os estados
+      updateToolbarPosition();
     }
   }
 
@@ -3125,41 +3194,44 @@ function initEditor() {
     console.log(`📝 Arquivo "${filename}" adicionado ao histórico (${voxelData.length} voxels)`);
   }
 
-  // Função para atualizar a exibição do histórico
-  function updateUploadHistoryDisplay() {
-    if (!uploadHistoryContent) return;
+  // Função para renderizar uma lista de histórico de upload de forma modular
+  function renderHistoryList(element, history) {
+    if (!element) return;
 
-    if (uploadHistory.length === 0) {
-      uploadHistoryContent.innerHTML = `
-        <div class="upload-history-empty">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+    if (history.length === 0) {
+      element.innerHTML = `
+        <div class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14,2 14,8 20,8"/>
           </svg>
           <p>Nenhum arquivo carregado ainda</p>
-          <small>Use o botão "Carregar Voxels" para começar</small>
+          <small>Use o botão "Carregar" para começar</small>
         </div>
       `;
       return;
     }
 
-    uploadHistoryContent.innerHTML = uploadHistory.map(item => `
-      <div class="upload-history-item" data-id="${item.id}">
-        <div class="upload-item-info">
-          <div class="upload-item-name">${item.filename}</div>
-          <div class="upload-item-meta">
+    element.innerHTML = history.map(item => `
+      <div class="object-card" data-id="${item.id}">
+        <div class="object-card-info">
+          <div class="object-card-header">
+            <div class="object-card-name">${item.filename}</div>
+            <span class="mode-badge editor-mode">EDITOR</span>
+          </div>
+          <div class="object-card-meta">
             ${item.voxelCount} voxels • ${item.timestamp.toLocaleTimeString()}
           </div>
         </div>
-        <div class="upload-item-actions">
-          <button class="upload-item-btn reload-btn" data-id="${item.id}" title="Recarregar">
+        <div class="object-card-actions">
+          <button class="object-card-btn reload" data-id="${item.id}" title="Recarregar">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="23 4 23 10 17 10"/>
               <polyline points="1 20 1 14 7 14"/>
               <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
             </svg>
           </button>
-          <button class="upload-item-btn delete-btn" data-id="${item.id}" title="Remover">
+          <button class="object-card-btn delete" data-id="${item.id}" title="Remover">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -3172,19 +3244,33 @@ function initEditor() {
     `).join('');
 
     // Adicionar event listeners para os botões
-    document.querySelectorAll('.reload-btn').forEach(btn => {
+    element.querySelectorAll('.reload').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const id = parseInt(e.currentTarget.dataset.id);
         reloadFromHistory(id);
       });
     });
 
-    document.querySelectorAll('.delete-btn').forEach(btn => {
+    element.querySelectorAll('.delete').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const id = parseInt(e.currentTarget.dataset.id);
         removeFromHistory(id);
       });
     });
+  }
+
+  // Função para atualizar a exibição do histórico
+  function updateUploadHistoryDisplay() {
+    // Apenas atualizar o histórico do editor, não interferir com o room mode
+    const uploadHistoryListElement = document.getElementById('uploadHistoryList');
+    if (uploadHistoryListElement) {
+      renderHistoryList(uploadHistoryListElement, uploadHistory);
+    }
+    
+    // O roomUploadHistoryList é gerenciado pelo roomMode.js
+    // Removido para evitar conflitos
   }
 
   // Função para recarregar arquivo do histórico
@@ -3262,14 +3348,8 @@ function initEditor() {
         openUploadHistorySidebar();
       }
 
-      // Mover barra de ferramentas baseado no estado do sidebar
-      if (uploadHistorySidebar.classList.contains('show')) {
-        // Sidebar aberto: mover barra para a direita do sidebar
-        iconToolbar.style.left = '365px'; // 55px (nova posição do sidebar) + 320px (largura) + 20px (espaço para barra maior)
-      } else {
-        // Sidebar fechado: voltar barra para posição original
-        iconToolbar.style.left = '10px';
-      }
+      // Atualizar posição da barra de ferramentas considerando todos os estados
+      updateToolbarPosition();
     });
   }  if (uploadHistoryClose) {
     uploadHistoryClose.addEventListener('click', closeUploadHistorySidebar);
@@ -3314,7 +3394,7 @@ function initEditor() {
     }
   });
 
-  // Atualizar callbacks do sistema de upload para incluir histórico
+  // Atualizar callbacks do sistema de upload para incluir histórico APENAS do editor
   const originalOnVoxelDataLoaded = fileUploadSystem.callbacks.onVoxelDataLoaded;
   const originalOnRoomObjectLoaded = fileUploadSystem.callbacks.onRoomObjectLoaded;
   
@@ -3324,19 +3404,620 @@ function initEditor() {
       // Chamar callback original
       originalOnVoxelDataLoaded(voxelData, filename);
 
-      // Adicionar ao histórico
-      addToUploadHistory(voxelData, filename, 'voxel');
+      // Adicionar ao histórico APENAS se estivermos no modo editor
+      const isCurrentlyInRoomMode = roomModeSystem && roomModeSystem.isRoomMode;
+      if (!isCurrentlyInRoomMode) {
+        console.log('📝 Adicionando ao histórico do EDITOR');
+        addToUploadHistory(voxelData, filename, 'voxel');
+      } else {
+        console.log('🏠 Upload no room mode - não adicionando ao histórico do editor');
+      }
     },
     onRoomObjectLoaded: (voxelData, filename) => {
       // Chamar callback original
       originalOnRoomObjectLoaded(voxelData, filename);
 
-      // Adicionar ao histórico
-      addToUploadHistory(voxelData, filename, 'roomObject');
+      // NÃO adicionar objetos de sala ao histórico do editor
+      // O room mode tem seu próprio sistema de histórico
+      console.log('🏠 Objeto de sala carregado - gerenciado pelo roomMode.js');
     }
   });
 
   console.log('📂 Sistema de histórico de uploads inicializado');
+
+  // =====================================================================
+  // INICIALIZAÇÃO DO SISTEMA DE TUTORIAL
+  // =====================================================================
+  
+  function initTutorialSystem() {
+    try {
+      // Criar instância do sistema de tutorial
+      window.tutorialSystem = new TutorialSystem();
+      
+      // Registrar o tutorial de arrastar objetos
+      window.tutorialSystem.registerTutorial('drag-objects', dragObjectsTutorial);
+      
+      console.log('🎓 Sistema de Tutorial inicializado com sucesso');
+      
+    } catch (error) {
+      console.error('❌ Erro ao inicializar sistema de tutorial:', error);
+      alert('Erro ao inicializar sistema de tutorial: ' + error.message);
+    }
+  }
+
+  function showTutorialMenu() {
+    const menu = document.createElement('div');
+    menu.className = 'tutorial-menu-modal';
+
+    menu.innerHTML = `
+      <div class="tutorial-menu-header">
+        <h2 class="tutorial-menu-title">🎓 Tutoriais Disponíveis</h2>
+        <p class="tutorial-menu-subtitle">Escolha um tutorial para aprender uma funcionalidade</p>
+      </div>
+      <div class="tutorial-list">
+        <div class="tutorial-item" data-tutorial="drag-objects">
+          <div class="tutorial-item-content">
+            <div class="tutorial-item-icon">🖱️</div>
+            <div class="tutorial-item-info">
+              <h3 class="tutorial-item-title">Arrastar Objetos</h3>
+              <p class="tutorial-item-description">Aprenda a selecionar e mover objetos no modo caminhar</p>
+              <div class="tutorial-item-meta">
+                <span class="tutorial-difficulty-badge">INICIANTE</span>
+                <span class="tutorial-duration">⏱️ 2-3 min</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="tutorial-menu-footer">
+        <button id="close-tutorial-menu" class="tutorial-menu-close-btn">Fechar</button>
+      </div>
+    `;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'tutorial-menu-overlay';
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(menu);
+
+    const tutorialItems = menu.querySelectorAll('.tutorial-item');
+    tutorialItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const tutorialId = item.dataset.tutorial;
+        if (tutorialId && window.tutorialSystem) {
+          closeTutorialMenu();
+          window.tutorialSystem.startTutorial(tutorialId);
+        }
+      });
+    });
+
+    const closeBtn = menu.querySelector('#close-tutorial-menu');
+    closeBtn.addEventListener('click', closeTutorialMenu);
+    overlay.addEventListener('click', closeTutorialMenu);
+
+    function closeTutorialMenu() {
+      if (overlay.parentNode) document.body.removeChild(overlay);
+      if (menu.parentNode) document.body.removeChild(menu);
+    }
+  }
+
+  function startTutorial(tutorialId) {
+    if (!window.tutorialSystem) {
+      console.error('Sistema de tutorial não está inicializado');
+      return;
+    }
+
+    console.log(`🎓 Iniciando tutorial: ${tutorialId}`);
+    window.tutorialSystem.startTutorial(tutorialId);
+  }
+
+
+  // Configurar botão de tutorial
+  if (tutorialBtn) {
+    tutorialBtn.onclick = () => {
+      console.log('🎓 Botão de tutorial clicado');
+      if (window.tutorialSystem) {
+        showTutorialMenu();
+        // Remover efeito de pulso após clicar
+        tutorialBtn.classList.remove('has-tutorials');
+      } else {
+        console.warn('⚠️ Sistema de tutorial não encontrado');
+      }
+    };
+    
+    // Adicionar efeito de pulso para indicar tutoriais disponíveis
+    tutorialBtn.classList.add('has-tutorials');
+    console.log('✨ Efeito de pulso adicionado ao botão de tutorial');
+  }
+
+  // =====================================================================
+  // INICIALIZAÇÃO DO SISTEMA DE TEXTURAS
+  // =====================================================================
+  
+  function initTextureSystem() {
+    try {
+      // Criar instância do sistema de texturas
+      window.textureSystem = new TextureSystem();
+      
+      // Configurar interface de texturas
+      setupTextureInterface();
+      
+      console.log('🎨 Sistema de Texturas inicializado com sucesso');
+      
+    } catch (error) {
+      console.error('❌ Erro ao inicializar sistema de texturas:', error);
+    }
+  }
+
+  function setupTextureInterface() {
+    const textureGrid = document.getElementById('texture-grid');
+    const currentTextureName = document.getElementById('current-texture-name');
+    const textureModeInputs = document.querySelectorAll('input[name="textureMode"]');
+    
+    if (!textureGrid) {
+      console.warn('⚠️ Grid de texturas não encontrado');
+      return;
+    }
+
+    // Carregar texturas disponíveis
+    const availableTextures = window.textureSystem.getAvailableTextures();
+    
+    availableTextures.forEach(textureData => {
+      const textureItem = document.createElement('div');
+      textureItem.className = 'texture-item';
+      textureItem.dataset.textureName = textureData.name;
+      
+      const preview = document.createElement('div');
+      preview.className = 'texture-preview';
+      
+      // Usar canvas como preview se disponível
+      if (textureData.preview && textureData.preview.tagName === 'CANVAS') {
+        preview.style.backgroundImage = `url(${textureData.preview.toDataURL()})`;
+      } else if (textureData.preview) {
+        preview.style.backgroundImage = `url(${textureData.preview})`;
+      }
+      
+      const name = document.createElement('div');
+      name.className = 'texture-name';
+      name.textContent = textureData.displayName;
+      
+      textureItem.appendChild(preview);
+      textureItem.appendChild(name);
+      
+      // Event listener para seleção
+      textureItem.addEventListener('click', () => {
+        // Remover seleção anterior
+        textureGrid.querySelectorAll('.texture-item').forEach(item => {
+          item.classList.remove('selected');
+        });
+        
+        // Selecionar atual
+        textureItem.classList.add('selected');
+        
+        // Definir textura atual
+        window.textureSystem.setCurrentTexture(textureData.name);
+        currentTextureName.textContent = textureData.displayName;
+        
+        console.log(`🎨 Textura selecionada: ${textureData.displayName}`);
+      });
+      
+      textureGrid.appendChild(textureItem);
+    });
+
+    // Event listeners para modo de textura
+    textureModeInputs.forEach(input => {
+      input.addEventListener('change', (e) => {
+        window.textureSystem.textureMode = e.target.value;
+        console.log(`🎨 Modo de textura alterado: ${e.target.value}`);
+      });
+    });
+
+    console.log(`🎨 Interface de texturas configurada com ${availableTextures.length} texturas`);
+  }
+
+  // =====================================================================
+  // CORREÇÃO DE TRANSPARÊNCIA
+  // =====================================================================
+  
+  function fixExistingVoxelsTransparency() {
+    let fixedCount = 0;
+    
+    voxels.forEach(voxel => {
+      if (voxel && voxel.material) {
+        if (Array.isArray(voxel.material)) {
+          // Material múltiplo (texturas por face)
+          voxel.material.forEach(mat => {
+            if (mat.transparent === true || mat.opacity < 1.0) {
+              mat.transparent = false;
+              mat.opacity = 1.0;
+              fixedCount++;
+            }
+          });
+        } else {
+          // Material único
+          if (voxel.material.transparent === true || voxel.material.opacity < 1.0) {
+            voxel.material.transparent = false;
+            voxel.material.opacity = 1.0;
+            fixedCount++;
+          }
+        }
+      }
+    });
+    
+    if (fixedCount > 0) {
+      console.log(`🔧 Corrigida transparência de ${fixedCount} voxels existentes`);
+    }
+  }
+
+  // Inicializar sistema de tutorial
+  initTutorialSystem();
+
+  // =====================================================================
+  // INICIALIZAÇÃO DO SISTEMA DE CONFIGURAÇÃO DA SALA
+  // =====================================================================
+  
+  function initRoomConfigSystem() {
+    try {
+      // Aguardar que o sistema de texturas esteja pronto
+      if (!window.textureSystem) {
+        console.warn('⚠️ Sistema de texturas não encontrado para configuração da sala');
+        return;
+      }
+
+      // Criar instância do sistema de configuração da sala
+      window.roomConfigSystem = new RoomConfigSystem(scene, window.textureSystem);
+      
+      // Configurar interface de configuração da sala
+      setupRoomConfigInterface();
+      
+      console.log('🏠 Sistema de Configuração da Sala inicializado com sucesso');
+      
+    } catch (error) {
+      console.error('❌ Erro ao inicializar sistema de configuração da sala:', error);
+    }
+  }
+
+  function setupRoomConfigInterface() {
+    // Elementos da interface
+    const roomWidthSlider = document.getElementById('room-width');
+    const roomHeightSlider = document.getElementById('room-height');
+    const roomDepthSlider = document.getElementById('room-depth');
+    const roomWidthValue = document.getElementById('room-width-value');
+    const roomHeightValue = document.getElementById('room-height-value');
+    const roomDepthValue = document.getElementById('room-depth-value');
+    
+    const floorTextureSelect = document.getElementById('floor-texture');
+    const wallsTextureSelect = document.getElementById('walls-texture');
+    const ceilingTextureSelect = document.getElementById('ceiling-texture');
+    
+    const applyConfigBtn = document.getElementById('apply-room-config');
+    const resetConfigBtn = document.getElementById('reset-room-config');
+
+    if (!roomWidthSlider || !applyConfigBtn) {
+      console.warn('⚠️ Elementos da interface de configuração da sala não encontrados');
+      return;
+    }
+
+    // Event listeners para sliders de dimensão
+    roomWidthSlider.addEventListener('input', (e) => {
+      roomWidthValue.textContent = `${e.target.value}m`;
+    });
+
+    roomHeightSlider.addEventListener('input', (e) => {
+      roomHeightValue.textContent = `${e.target.value}m`;
+    });
+
+    roomDepthSlider.addEventListener('input', (e) => {
+      roomDepthValue.textContent = `${e.target.value}m`;
+    });
+
+    // Event listeners para seleção de texturas
+    floorTextureSelect.addEventListener('change', (e) => {
+      console.log(`🎨 Textura do chão selecionada: ${e.target.value}`);
+    });
+
+    wallsTextureSelect.addEventListener('change', (e) => {
+      console.log(`🎨 Textura das paredes selecionada: ${e.target.value}`);
+    });
+
+    ceilingTextureSelect.addEventListener('change', (e) => {
+      console.log(`🎨 Textura do teto selecionada: ${e.target.value}`);
+    });
+
+    // Botão aplicar configuração
+    applyConfigBtn.addEventListener('click', () => {
+      const config = {
+        dimensions: {
+          width: parseInt(roomWidthSlider.value),
+          height: parseInt(roomHeightSlider.value),
+          depth: parseInt(roomDepthSlider.value)
+        },
+        textures: {
+          floor: floorTextureSelect.value,
+          walls: wallsTextureSelect.value,
+          ceiling: ceilingTextureSelect.value
+        }
+      };
+
+      console.log('🏗️ Aplicando configuração da sala:', config);
+      
+      // Aplicar configuração
+      window.roomConfigSystem.applyConfig(config);
+      
+      // Feedback visual
+      applyConfigBtn.textContent = '✅ Aplicado!';
+      setTimeout(() => {
+        applyConfigBtn.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20,6 9,17 4,12"/>
+          </svg>
+          Aplicar Configuração
+        `;
+      }, 2000);
+    });
+
+    // Botão resetar configuração
+    resetConfigBtn.addEventListener('click', () => {
+      // Resetar para valores padrão
+      roomWidthSlider.value = 20;
+      roomHeightSlider.value = 10;
+      roomDepthSlider.value = 20;
+      roomWidthValue.textContent = '20m';
+      roomHeightValue.textContent = '10m';
+      roomDepthValue.textContent = '20m';
+      
+      floorTextureSelect.value = 'wood_oak';
+      wallsTextureSelect.value = 'wallpaper_stripes';
+      ceilingTextureSelect.value = 'marble_white';
+
+      console.log('🔄 Configuração da sala resetada');
+      
+      // Feedback visual
+      resetConfigBtn.textContent = '✅ Resetado!';
+      setTimeout(() => {
+        resetConfigBtn.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23,4 23,10 17,10"/>
+            <path d="M20.49,15a9,9,0,1,1-2.12-9.36L23,10"/>
+          </svg>
+          Resetar
+        `;
+      }, 2000);
+    });
+
+    console.log('🎛️ Interface de configuração da sala configurada');
+  }
+
+  // Inicializar sistema de texturas
+  initTextureSystem();
+
+  // =====================================================================
+  // INICIALIZAÇÃO DO SISTEMA DE PORTAS E JANELAS
+  // =====================================================================
+  
+  function initDoorWindowSystem() {
+    try {
+      // Aguardar que o sistema de configuração da sala esteja pronto
+      if (!window.roomConfigSystem) {
+        console.warn('⚠️ Sistema de configuração da sala não encontrado para portas e janelas');
+        return;
+      }
+
+      // Criar instância do sistema de portas e janelas
+      window.doorWindowSystem = new DoorWindowSystem(scene, window.roomConfigSystem);
+      
+      // Configurar interface de portas e janelas
+      setupDoorWindowInterface();
+      
+      console.log('🚪 Sistema de Portas e Janelas inicializado com sucesso');
+      
+    } catch (error) {
+      console.error('❌ Erro ao inicializar sistema de portas e janelas:', error);
+    }
+  }
+
+  function setupDoorWindowInterface() {
+    // Elementos da interface de portas
+    const doorWallSelect = document.getElementById('door-wall-select');
+    const doorIdInput = document.getElementById('door-id');
+    const doorPosXSlider = document.getElementById('door-pos-x');
+    const doorPosXValue = document.getElementById('door-pos-x-value');
+    const createDoorBtn = document.getElementById('create-door-btn');
+    const doorsList = document.getElementById('doors-list');
+
+    // Elementos da interface de janelas
+    const windowWallSelect = document.getElementById('window-wall-select');
+    const windowIdInput = document.getElementById('window-id');
+    const windowPosXSlider = document.getElementById('window-pos-x');
+    const windowPosXValue = document.getElementById('window-pos-x-value');
+    const windowPosYSlider = document.getElementById('window-pos-y');
+    const windowPosYValue = document.getElementById('window-pos-y-value');
+    const windowCanOpenCheckbox = document.getElementById('window-can-open');
+    const createWindowBtn = document.getElementById('create-window-btn');
+    const windowsList = document.getElementById('windows-list');
+
+    if (!createDoorBtn || !createWindowBtn) {
+      console.warn('⚠️ Elementos da interface de portas e janelas não encontrados');
+      return;
+    }
+
+    // Event listeners para sliders de posição das portas
+    doorPosXSlider.addEventListener('input', (e) => {
+      doorPosXValue.textContent = `${parseFloat(e.target.value).toFixed(1)}m`;
+    });
+
+    // Event listeners para sliders de posição das janelas
+    windowPosXSlider.addEventListener('input', (e) => {
+      windowPosXValue.textContent = `${parseFloat(e.target.value).toFixed(1)}m`;
+    });
+
+    windowPosYSlider.addEventListener('input', (e) => {
+      windowPosYValue.textContent = `${parseFloat(e.target.value).toFixed(1)}m`;
+    });
+
+    // Botão criar porta
+    createDoorBtn.addEventListener('click', () => {
+      const doorId = doorIdInput.value.trim();
+      const wallName = doorWallSelect.value;
+      const posX = parseFloat(doorPosXSlider.value);
+
+      if (!doorId) {
+        alert('Por favor, insira um ID para a porta');
+        return;
+      }
+
+      // Verificar se ID já existe
+      if (window.doorWindowSystem.doors.has(doorId)) {
+        alert('Uma porta com este ID já existe');
+        return;
+      }
+
+      // Criar porta
+      const door = window.doorWindowSystem.createDoor(doorId, wallName, { x: posX, y: 0 });
+      
+      if (door) {
+        // Atualizar lista de portas
+        updateDoorsList();
+        
+        // Incrementar ID para próxima porta
+        const nextId = doorId.replace(/\d+$/, (match) => parseInt(match) + 1);
+        doorIdInput.value = nextId;
+        
+        console.log(`🚪 Porta '${doorId}' criada com sucesso`);
+      }
+    });
+
+    // Botão criar janela
+    createWindowBtn.addEventListener('click', () => {
+      const windowId = windowIdInput.value.trim();
+      const wallName = windowWallSelect.value;
+      const posX = parseFloat(windowPosXSlider.value);
+      const posY = parseFloat(windowPosYSlider.value);
+      const canOpen = windowCanOpenCheckbox.checked;
+
+      if (!windowId) {
+        alert('Por favor, insira um ID para a janela');
+        return;
+      }
+
+      // Verificar se ID já existe
+      if (window.doorWindowSystem.windows.has(windowId)) {
+        alert('Uma janela com este ID já existe');
+        return;
+      }
+
+      // Criar janela
+      const windowElement = window.doorWindowSystem.createWindow(windowId, wallName, 
+        { x: posX, y: posY }, 
+        { canOpen: canOpen }
+      );
+      
+      if (windowElement) {
+        // Atualizar lista de janelas
+        updateWindowsList();
+        
+        // Incrementar ID para próxima janela
+        const nextId = windowId.replace(/\d+$/, (match) => parseInt(match) + 1);
+        windowIdInput.value = nextId;
+        
+        console.log(`🪟 Janela '${windowId}' criada com sucesso`);
+      }
+    });
+
+    // Função para atualizar lista de portas
+    function updateDoorsList() {
+      doorsList.innerHTML = '';
+      
+      const doors = window.doorWindowSystem.getDoors();
+      doors.forEach(door => {
+        const doorItem = document.createElement('div');
+        doorItem.className = 'door-window-item';
+        doorItem.innerHTML = `
+          <div class="door-window-item-info">
+            <div class="door-window-item-name">🚪 ${door.id}</div>
+            <div class="door-window-item-details">${door.wallName} • x: ${door.position.x.toFixed(1)}m</div>
+          </div>
+          <div class="door-window-item-actions">
+            <button class="door-window-item-btn toggle" onclick="toggleDoor('${door.id}')">
+              ${door.isOpen ? '🔓' : '🔒'}
+            </button>
+            <button class="door-window-item-btn remove" onclick="removeDoor('${door.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3,6 5,6 21,6"/>
+                <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+              </svg>
+            </button>
+          </div>
+        `;
+        doorsList.appendChild(doorItem);
+      });
+    }
+
+    // Função para atualizar lista de janelas
+    function updateWindowsList() {
+      windowsList.innerHTML = '';
+      
+      const windows = window.doorWindowSystem.getWindows();
+      windows.forEach(windowData => {
+        const windowItem = document.createElement('div');
+        windowItem.className = 'door-window-item';
+        windowItem.innerHTML = `
+          <div class="door-window-item-info">
+            <div class="door-window-item-name">🪟 ${windowData.id}</div>
+            <div class="door-window-item-details">${windowData.wallName} • x: ${windowData.position.x.toFixed(1)}m, y: ${windowData.position.y.toFixed(1)}m</div>
+          </div>
+          <div class="door-window-item-actions">
+            <button class="door-window-item-btn toggle" onclick="toggleWindow('${windowData.id}')">
+              ${windowData.isOpen ? '🔓' : '🔒'}
+            </button>
+            <button class="door-window-item-btn remove" onclick="removeWindow('${windowData.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3,6 5,6 21,6"/>
+                <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+              </svg>
+            </button>
+          </div>
+        `;
+        windowsList.appendChild(windowItem);
+      });
+    }
+
+    // Expor funções globalmente para os botões
+    window.toggleDoor = (doorId) => {
+      window.doorWindowSystem.toggleDoor(doorId);
+      updateDoorsList();
+    };
+
+    window.toggleWindow = (windowId) => {
+      window.doorWindowSystem.toggleWindow(windowId);
+      updateWindowsList();
+    };
+
+    window.removeDoor = (doorId) => {
+      if (confirm(`Tem certeza que deseja remover a porta '${doorId}'?`)) {
+        window.doorWindowSystem.removeDoor(doorId);
+        updateDoorsList();
+      }
+    };
+
+    window.removeWindow = (windowId) => {
+      if (confirm(`Tem certeza que deseja remover a janela '${windowId}'?`)) {
+        window.doorWindowSystem.removeWindow(windowId);
+        updateWindowsList();
+      }
+    };
+
+    console.log('🎛️ Interface de portas e janelas configurada');
+  }
+
+  // Inicializar sistema de configuração da sala
+  initRoomConfigSystem();
+
+  // Inicializar sistema de portas e janelas
+  initDoorWindowSystem();
+
+  // Corrigir transparência de voxels existentes
+  fixExistingVoxelsTransparency();
 
 } // Fim da função initEditor()
 

@@ -11,2534 +11,13 @@
   <meta name="msapplication-TileImage" content="logo.png">
   <!-- Favicon SVG para melhor qualidade -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='a' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' stop-color='%23666'/><stop offset='50%' stop-color='%23333'/><stop offset='100%' stop-color='%23111'/></linearGradient></defs><rect width='32' height='32' fill='%230a0a0a'/><g transform='translate(6,6)'><path d='M10 0 L20 5.77 L20 17.32 L10 23.09 L0 17.32 L0 5.77 Z' fill='url(%23a)' stroke='%23444' stroke-width='0.5'/><path d='M10 0 L20 5.77 L10 11.55 Z' fill='%23888'/><path d='M0 5.77 L10 11.55 L10 23.09 L0 17.32 Z' fill='%23222'/><path d='M10 11.55 L20 5.77 L20 17.32 L10 23.09 Z' fill='%23444'/></g></svg>">
-  <style>
-    /* ===== VARIÁVEIS CSS MODERNAS ===== */
-    :root {
-      --bg-primary: #0f0f0f;
-      --bg-secondary: #1a1a1a;
-      --bg-tertiary: #252525;
-      --bg-hover: #2d2d2d;
-      --bg-active: #363636;
-      
-      --accent-primary: #7c3aed;
-      --accent-secondary: #a855f7;
-      --accent-tertiary: #c084fc;
-      --accent-gold: #fbbf24;
-      --accent-green: #10b981;
-      --accent-red: #ef4444;
-      --accent-cyan: #06b6d4;
-      
-      --text-primary: #ffffff;
-      --text-secondary: #d1d5db;
-      --text-muted: #9ca3af;
-      --text-accent: #fbbf24;
-      
-      --border-primary: #374151;
-      --border-secondary: #4b5563;
-      --border-accent: #7c3aed;
-      
-      --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-      --shadow-glow: 0 0 20px rgba(124, 58, 237, 0.3);
-      --shadow-glow-gold: 0 0 20px rgba(251, 191, 36, 0.4);
-      
-      --radius-sm: 6px;
-      --radius-md: 8px;
-      --radius-lg: 12px;
-      --radius-xl: 16px;
-      
-      --transition-fast: 0.15s ease-out;
-      --transition-normal: 0.25s ease-out;
-      --transition-slow: 0.35s ease-out;
-    }
 
-    /* ===== RESET E BASE ===== */
-    * {
-      box-sizing: border-box;
-    }
-    
-    body {
-      margin: 0;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      height: 100vh;
-      overflow: hidden;
-      font-size: 14px;
-      line-height: 1.5;
-    }
+  <link rel="stylesheet" href="styles.css">
 
-    /* ===== CONTAINER PRINCIPAL ===== */
-    #main-container {
-      display: block;
-      height: 100vh;
-      background: var(--bg-primary);
-      position: relative;
-    }
 
-    /* ===== PAINEL LATERAL FLUTUANTE ===== */
-    #left-panel {
-      width: 300px;
-      background: rgba(26, 26, 26, 0.8);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(45, 45, 45, 0.6);
-      border-radius: 16px;
-      display: none;
-      flex-direction: column;
-      overflow: hidden;
-      font-size: 13px;
-      position: fixed;
-      left: 20px;
-      top: 20px;
-      bottom: 20px;
 
-      z-index: 100;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      transition: all 0.3s ease;
-    }
 
-    #left-panel.show {
-      display: flex;
-      animation: slideInLeft 0.3s ease-out;
-    }
 
-    @keyframes slideInLeft {
-      from {
-        opacity: 0;
-        transform: translateX(-20px) scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0) scale(1);
-      }
-    }
-
-    /* ===== PAINEL DE OBJETOS DA SALA (REMOVIDO) ===== */
-
-    .panel-header {
-      padding: 12px 16px;
-      border-bottom: 1px solid rgba(45, 45, 45, 0.6);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: rgba(42, 42, 42, 0.8);
-    }
-
-    .panel-header h3 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #ffffff;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .panel-header h3 svg {
-      color: var(--accent-gold); /* Use a relevant accent color */
-      flex-shrink: 0;
-    }
-
-    .panel-close-btn {
-      width: 24px;
-      height: 24px;
-      border: none;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #cccccc;
-    }
-
-    .panel-close-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-      color: #ffffff;
-    }
-
-    .panel-content {
-      padding: 16px;
-      flex: 1;
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
-
-    .panel-content::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    .panel-content::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .panel-content::-webkit-scrollbar-thumb {
-      background: #444444;
-      border-radius: 2px;
-    }
-
-    .panel-content::-webkit-scrollbar-thumb:hover {
-      background: #555555;
-    }
-
-    /* Remover gradiente lateral */
-    
-
-
-
-    /* ===== CONTAINER DE UPLOAD MODERNO ===== */
-    #reference-upload {
-      width: 100%;
-      padding: 20px;
-      background: #2a2a2a;
-      border: 2px dashed #4a4a4a;
-      border-radius: 12px;
-      color: #cccccc;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      font-size: 13px;
-      text-align: center;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-
-    #reference-upload::before {
-      content: "📁";
-      font-size: 24px;
-      opacity: 0.6;
-    }
-
-    #reference-upload:hover {
-      background: #333333;
-      border-color: #7c3aed;
-      color: #ffffff;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
-    }
-
-    #reference-upload.drag-over {
-      background: #2d2a4a;
-      border-color: #7c3aed;
-      color: #7c3aed;
-    }
-
-    /* ===== PREVIEW DE IMAGEM MODERNA ===== */
-    #reference-image {
-      max-width: 100%;
-      max-height: 180px;
-      border-radius: 8px;
-      display: none;
-      object-fit: contain;
-      border: 1px solid #3a3a3a;
-      background: #1e1e1e;
-    }
-
-    /* ===== CONTROLES DE REFERÊNCIA MODERNOS ===== */
-    #reference-controls {
-      display: none;
-      gap: 8px;
-      flex-direction: column;
-    }
-
-    #reference-controls.active {
-      display: flex;
-    }
-
-    .reference-control-row {
-      display: flex;
-      gap: 8px;
-    }
-
-    #reference-controls button {
-      flex: 1;
-      padding: 10px 12px;
-      background: #2a2a2a;
-      color: #cccccc;
-      border: 1px solid #3a3a3a;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 12px;
-      transition: all 0.2s ease;
-      font-weight: 500;
-    }
-
-    #reference-controls button:hover {
-      background: #333333;
-      color: #ffffff;
-      border-color: #7c3aed;
-      transform: translateY(-1px);
-    }
-
-    #opacity-btn {
-      background: #2a2a2a !important;
-      border-color: #4a4a4a !important;
-    }
-
-    #opacity-btn:hover {
-      background: #333333 !important;
-      border-color: #7c3aed !important;
-    }
-
-    #remove-ref-btn:hover {
-      background: #4a2a2a !important;
-      border-color: #ef4444 !important;
-      color: #ef4444 !important;
-    }
-
-    /* ===== SEÇÃO DE CORES FLUTUANTE ===== */
-    #color-section {
-      padding: 16px;
-      flex: 1;
-      overflow-y: auto;
-      overflow-x: hidden;
-      background: transparent;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    #color-section::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    #color-section::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    #color-section::-webkit-scrollbar-thumb {
-      background: #444444;
-      border-radius: 2px;
-    }
-
-    #color-section::-webkit-scrollbar-thumb:hover {
-      background: #555555;
-    }
-
-    #color-title {
-      font-weight: 500;
-      margin-bottom: 8px;
-      color: #ffffff;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      opacity: 0.9;
-    }
-
-    /* ===== COLOR PICKER CONTAINER ===== */
-    #color-picker-container {
-      background: #2a2a2a;
-      border: 1px solid #3a3a3a;
-      border-radius: 12px;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    /* ===== DISPLAY DE COR ATUAL ===== */
-    #main-color-display {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 8px;
-      background: #1e1e1e;
-      border-radius: 8px;
-      border: 1px solid #3a3a3a;
-      position: relative;
-    }
-
-    /* Botão eyedropper dentro do main-color-display */
-    #main-color-display .eyedropper-btn {
-      width: 24px !important;
-      height: 24px !important;
-      background: rgba(255, 255, 255, 0.05) !important;
-      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-      border-radius: 4px !important;
-      color: rgba(255, 255, 255, 0.6) !important;
-      cursor: pointer !important;
-      transition: all 0.3s ease !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      opacity: 0.7 !important;
-      position: absolute !important;
-      top: 8px !important;
-      right: 8px !important;
-      z-index: 10;
-    }
-
-    #main-color-display .eyedropper-btn:hover {
-      background: rgba(255, 255, 255, 0.08) !important;
-      border-color: rgba(255, 255, 255, 0.12) !important;
-      opacity: 0.9 !important;
-      color: rgba(255, 255, 255, 0.8) !important;
-    }
-
-    #main-color-display .eyedropper-btn.active {
-      background: rgba(244, 114, 182, 0.15) !important;
-      border-color: rgba(244, 114, 182, 0.4) !important;
-      color: #f472b6 !important;
-      opacity: 1 !important;
-      box-shadow: 0 0 8px rgba(244, 114, 182, 0.2) !important;
-    }
-
-    #current-color {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      border: 2px solid #ffffff;
-      background: #7c3aed;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-
-    #color-info {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    #color-hex {
-      color: #ffffff;
-      font-size: 14px;
-      font-weight: 500;
-      font-family: 'Consolas', 'Monaco', monospace;
-    }
-
-    #opacity-value {
-      color: #999999;
-      font-size: 12px;
-    }
-
-    /* ===== GRADIENTE DE COR ===== */
-    #color-gradient {
-      position: relative;
-      width: 100%;
-      height: 120px;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid #3a3a3a;
-    }
-
-    #color-canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-
-    #color-picker-handle {
-      position: absolute;
-      width: 12px;
-      height: 12px;
-      border: 2px solid #ffffff;
-      border-radius: 50%;
-      background: transparent;
-      pointer-events: none;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 0 0 1px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
-      top: 50%;
-      left: 80%;
-    }
-
-    /* ===== SLIDERS ===== */
-    #color-sliders {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    /* ===== PALETA DE CORES ===== */
-    #quick-colors {
-      padding-top: 16px;
-      border-top: 1px solid var(--border-primary);
-    }
-
-    #colorPalette {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
-      gap: 8px;
-    }
-
-    .color-btn {
-      width: 100%;
-      aspect-ratio: 1 / 1;
-      border-radius: 6px;
-      border: 2px solid var(--bg-tertiary);
-      cursor: pointer;
-      transition: all 0.2s ease-out;
-      position: relative;
-      box-shadow: var(--shadow-sm);
-      animation: fadeIn 0.3s ease-out calc(var(--delay, 0) * 0.02s) both;
-    }
-
-    .color-btn:hover {
-      transform: scale(1.1);
-      box-shadow: var(--shadow-md);
-      border-color: var(--text-secondary);
-    }
-
-    .color-btn.selected {
-      border-color: var(--text-primary);
-      box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
-      transform: scale(1.05);
-    }
-
-    .color-btn.selected::after {
-      content: '';
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      width: 6px;
-      height: 6px;
-      background: white;
-      border-radius: 50%;
-      box-shadow: 0 0 4px black;
-    }
-
-    /* ===== CONTAINER 3D ===== */
-    #three-container {
-      width: 100vw;
-      height: 100vh;
-      position: relative;
-      background: var(--bg-primary);
-      overflow: hidden;
-    }
-
-    /* ===== BARRA FLUTUANTE SUPERIOR ===== */
-    #top-bar {
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(26, 26, 26, 0.8);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(45, 45, 45, 0.6);
-      border-radius: 16px;
-      padding: 8px 12px;
-      z-index: 200;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      display: flex;
-      gap: 8px;
-    }
-
-    #top-bar .icon-btn {
-      margin-bottom: 0;
-    }
-
-    #time-of-day-controls {
-      display: flex;
-      gap: 8px;
-      margin-left: 16px;
-    }
-
-    .time-btn {
-      padding: 8px 16px;
-      border: 1px solid #3a3a3a;
-      border-radius: 8px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 13px;
-      background: #2a2a2a;
-      color: #cccccc;
-    }
-
-    .time-btn:hover {
-      background: #333333;
-      border-color: #4a4a4a;
-      color: #ffffff;
-    }
-
-    .time-btn.active {
-      background: var(--accent-primary);
-      color: var(--text-primary);
-      border-color: var(--accent-primary);
-    }
-
-    #time-of-day-slider-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-left: 16px;
-      width: 200px; /* Adjust width as needed */
-    }
-
-    #time-of-day-slider {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 100%;
-      height: 8px;
-      background: linear-gradient(to right, #4CAF50, #FFEB3B, #FF9800, #2196F3, #9C27B0); /* Gradient for visual appeal */
-      border-radius: 5px;
-      outline: none;
-      transition: opacity .2s;
-    }
-
-    #time-of-day-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #ffffff;
-      cursor: pointer;
-      box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-    }
-
-    #time-of-day-slider::-moz-range-thumb {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #ffffff;
-      cursor: pointer;
-      box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-    }
-
-    #time-display {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--text-primary);
-      min-width: 45px;
-      text-align: center;
-    }
-
-    /* ===== IMAGEM DE REFERÊNCIA FLUTUANTE ===== */
-    #floating-reference {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      width: 300px;
-      min-width: 150px;
-      max-width: 80vw;
-      background: rgba(30, 30, 30, 0.95);
-      border: 1px solid #3a3a3a;
-      border-radius: 12px;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      z-index: 150;
-      resize: none;
-      overflow: hidden;
-    }
-
-    #floating-reference-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 12px;
-      background: rgba(124, 58, 237, 0.1);
-      border-bottom: 1px solid #3a3a3a;
-      cursor: move;
-      user-select: none;
-    }
-
-    #floating-reference-title {
-      font-size: 12px;
-      font-weight: 500;
-      color: #ffffff;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    #floating-reference-controls {
-      display: flex;
-      gap: 4px;
-    }
-
-    #floating-reference-controls button {
-      width: 24px;
-      height: 24px;
-      border: none;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #ffffff;
-    }
-
-    #floating-reference-controls button svg {
-      width: 14px;
-      height: 14px;
-      opacity: 0.8;
-      transition: opacity 0.2s ease;
-    }
-
-    #floating-reference-controls button:hover {
-      background: rgba(255, 255, 255, 0.2);
-      transform: scale(1.1);
-    }
-
-    #floating-reference-controls button:hover svg {
-      opacity: 1;
-    }
-
-    #floating-opacity-btn:hover {
-      background: rgba(124, 58, 237, 0.3);
-    }
-
-    #floating-remove-btn:hover {
-      background: rgba(239, 68, 68, 0.3);
-    }
-
-    #floating-reference-content {
-      position: relative;
-      padding: 8px;
-    }
-
-    #floating-reference-image {
-      width: 100%;
-      height: auto;
-      border-radius: 6px;
-      display: block;
-      user-select: none;
-      pointer-events: none;
-    }
-
-    /* Cursor crosshair para eyedropper */
-    #floating-reference-image.eyedropper-active {
-      cursor: crosshair !important;
-      pointer-events: auto !important;
-    }
-
-    #floating-reference-image.eyedropper-active:hover {
-      cursor: crosshair !important;
-    }
-
-    #resize-handle {
-      position: absolute;
-      bottom: 0;
-      right: 0;
-      width: 16px;
-      height: 16px;
-      background: linear-gradient(-45deg, transparent 30%, #7c3aed 30%, #7c3aed 70%, transparent 70%);
-      cursor: nw-resize;
-      border-radius: 0 0 6px 0;
-      opacity: 0.7;
-    }
-
-    #resize-handle:hover {
-      opacity: 1;
-      transform: scale(1.2);
-    }
-
-    /* ===== ESTADOS DA IMAGEM FLUTUANTE ===== */
-    #floating-reference.dragging {
-      transform: rotate(2deg);
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-    }
-
-    #floating-reference.resizing {
-      user-select: none;
-    }
-
-    /* ===== ANIMAÇÃO DE ENTRADA ===== */
-    @keyframes floatIn {
-      from {
-        opacity: 0;
-        transform: translateY(-20px) scale(0.9);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
-    }
-
-    #floating-reference {
-      animation: floatIn 0.3s ease-out;
-    }
-
-    /* ===== BARRA VERTICAL DE ÍCONES FIXA ===== */
-    #icon-toolbar {
-      width: 60px;
-      background: rgba(26, 26, 26, 0.8);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(45, 45, 45, 0.6);
-      border-radius: 16px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 16px 0;
-      position: fixed;
-      left: 30px;
-      top: 20px;
-      bottom: 20px;
-      z-index: 200;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      transition: left 0.3s ease;
-    }
-
-    /* ===== LOGO DA APLICAÇÃO ===== */
-    .logo-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid rgba(45, 45, 45, 0.6);
-    }
-
-    .app-logo {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
-      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
-      transition: transform 0.2s ease;
-    }
-
-    .app-logo:hover {
-      transform: scale(1.05);
-    }
-
-
-
-    .icon-btn {
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      background: rgba(42, 42, 42, 0.7);
-      border: 1px solid rgba(58, 58, 58, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      margin-bottom: 8px;
-      position: relative;
-      color: #cccccc;
-      backdrop-filter: blur(5px);
-    }
-
-    .icon-btn:hover {
-      background: rgba(50, 50, 50, 0.9);
-      border-color: rgba(70, 70, 70, 0.8);
-      color: #ffffff;
-      transform: none;
-      box-shadow: none;
-    }
-
-    .icon-btn:active {
-      transform: translateX(-2px) scale(1.02);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    }
-
-    .icon-btn.active {
-      background: rgba(124, 58, 237, 0.8);
-      border-color: rgba(124, 58, 237, 0.6);
-      color: rgba(255, 255, 255, 1);
-      box-shadow: 0 4px 20px rgba(124, 58, 237, 0.3);
-    }
-
-    .icon-btn.active:hover {
-      background: rgba(124, 58, 237, 0.9);
-      border-color: rgba(124, 58, 237, 0.8);
-      box-shadow: 0 6px 24px rgba(124, 58, 237, 0.4);
-    }
-
-    /* Efeitos hover simplificados para todos os botões */
-
-    /* ===== CONTADOR DE VOXELS NA BARRA DE ÍCONES ===== */
-    #voxel-counter-icon {
-      margin-top: auto;
-      margin-bottom: 0;
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      background: rgba(42, 42, 42, 0.7);
-      border: 1px solid rgba(58, 58, 58, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      transition: all 0.3s ease;
-      backdrop-filter: blur(5px);
-    }
-
-    #voxel-counter-icon:hover {
-      background: rgba(50, 50, 50, 0.9);
-      border-color: rgba(70, 70, 70, 0.8);
-      transform: none;
-      box-shadow: none;
-    }
-
-    #voxel-counter-icon #voxelCount {
-      color: #ffffff;
-      font-weight: 600;
-      font-size: 9px;
-      text-align: center;
-      line-height: 1;
-      text-transform: none;
-      letter-spacing: 0;
-      margin: 0;
-      padding: 0;
-      background: none;
-      border: none;
-      opacity: 1;
-    }
-
-    /* ===== TOOLTIPS ===== */
-    .icon-btn[data-tooltip]:hover::after,
-    #voxel-counter-icon[data-tooltip]:hover::after {
-      content: attr(data-tooltip);
-      position: absolute;
-      left: 100%;
-      top: 50%;
-      transform: translateY(-50%);
-      margin-left: 12px;
-      padding: 8px 12px;
-      background: rgba(0, 0, 0, 0.9);
-      color: #ffffff;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      white-space: nowrap;
-      z-index: 1000;
-      pointer-events: none;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-      border: 1px solid #3a3a3a;
-    }
-
-    .icon-btn[data-tooltip]:hover::before,
-    #voxel-counter-icon[data-tooltip]:hover::before {
-      content: '';
-      position: absolute;
-      left: 100%;
-      top: 50%;
-      transform: translateY(-50%);
-      margin-left: 6px;
-      width: 0;
-      height: 0;
-      border-top: 6px solid transparent;
-      border-bottom: 6px solid transparent;
-      border-right: 6px solid rgba(0, 0, 0, 0.9);
-      z-index: 1000;
-      pointer-events: none;
-    }
-
-    /* ===== BOTÃO DE AJUDA FLUTUANTE ===== */
-    #help-button {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 300;
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      background: rgba(42, 42, 42, 0.8);
-      border: 1px solid rgba(58, 58, 58, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      color: #cccccc;
-      backdrop-filter: blur(5px);
-    }
-
-    #help-button:hover {
-      background: rgba(50, 50, 50, 0.9);
-      border-color: rgba(70, 70, 70, 0.8);
-      color: #ffffff;
-      transform: none;
-      box-shadow: none;
-    }
-
-    #help-button:active {
-      transform: translateX(-2px) scale(1.02);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    }
-
-    /* Tooltip para o botão de ajuda */
-    #help-button[data-tooltip]:hover::after {
-      content: attr(data-tooltip);
-      position: absolute;
-      right: 100%;
-      top: 50%;
-      transform: translateY(-50%);
-      margin-right: 12px;
-      padding: 8px 12px;
-      background: rgba(0, 0, 0, 0.9);
-      color: #ffffff;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      white-space: nowrap;
-      z-index: 1000;
-      pointer-events: none;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-      border: 1px solid #3a3a3a;
-    }
-
-    #help-button[data-tooltip]:hover::before {
-      content: '';
-      position: absolute;
-      right: 100%;
-      top: 50%;
-      transform: translateY(-50%);
-      margin-right: 6px;
-      width: 0;
-      height: 0;
-      border-top: 6px solid transparent;
-      border-bottom: 6px solid transparent;
-      border-left: 6px solid rgba(0, 0, 0, 0.9);
-      z-index: 1000;
-      pointer-events: none;
-    }
-
-    /* ===== PAINEL DE AJUDA ===== */
-    #help-panel {
-      position: fixed;
-      top: 80px;
-      right: 20px;
-      width: 320px;
-      max-height: calc(100vh - 100px);
-      background: rgba(26, 26, 26, 0.95);
-      border: 1px solid rgba(58, 58, 58, 0.5);
-      border-radius: 12px;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      z-index: 250;
-      display: none;
-      flex-direction: column;
-      overflow: hidden;
-      animation: slideInRight 0.3s ease-out;
-    }
-
-    #help-panel.show {
-      display: flex;
-    }
-
-    @keyframes slideInRight {
-      from {
-        opacity: 0;
-        transform: translateX(20px) scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0) scale(1);
-      }
-    }
-
-    .help-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid rgba(58, 58, 58, 0.5);
-      background: rgba(42, 42, 42, 0.8);
-      position: relative;
-    }
-
-    .help-header h2 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #ffffff;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .help-header h2 svg {
-      color: #cccccc;
-      flex-shrink: 0;
-    }
-
-    .help-content {
-      padding: 16px 20px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      flex: 1;
-      background: rgba(26, 26, 26, 0.8);
-      backdrop-filter: blur(5px);
-    }
-
-    .help-content::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    .help-content::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .help-content::-webkit-scrollbar-thumb {
-      background: rgba(70, 70, 70, 0.8);
-      border-radius: 2px;
-    }
-
-    .help-section {
-      margin-bottom: 16px;
-    }
-
-    .help-section h3 {
-      margin: 0 0 10px 0;
-      font-size: 13px;
-      font-weight: 600;
-      color: #cccccc;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .help-section h3 svg {
-      color: #ffffff;
-      flex-shrink: 0;
-    }
-
-    .help-item {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 8px 12px;
-      background: rgba(42, 42, 42, 0.6);
-      border-radius: 6px;
-      margin-bottom: 6px;
-      border: 1px solid rgba(58, 58, 58, 0.3);
-    }
-
-    .help-item .shortcut {
-      font-weight: 600;
-      color: #ffffff;
-      font-size: 11px;
-    }
-
-    .help-item .description {
-      color: #cccccc;
-      font-size: 10px;
-      line-height: 1.3;
-    }
-
-    .help-close {
-      position: absolute;
-      top: 12px;
-      right: 16px;
-      width: 20px;
-      height: 20px;
-      border: none;
-      background: rgba(42, 42, 42, 0.8);
-      color: #cccccc;
-      cursor: pointer;
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.3s ease;
-      border: 1px solid rgba(58, 58, 58, 0.5);
-    }
-
-    .help-close:hover {
-      background: rgba(50, 50, 50, 0.9);
-      color: #ffffff;
-    }
-
-    /* ===== BOTÕES MODERNOS ===== */
-    .btn {
-      padding: 10px 16px;
-      border: 1px solid #3a3a3a;
-      border-radius: 8px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 13px;
-      background: #2a2a2a;
-      color: #cccccc;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .btn::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-      transition: left 0.5s ease;
-    }
-
-    .btn:hover {
-      background: #333333;
-      border-color: #4a4a4a;
-      color: #ffffff;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    }
-
-    .btn:hover::before {
-      left: 100%;
-    }
-
-    .btn:active {
-      transform: translateY(0);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    }
-
-    /* ===== BOTÕES ESPECIALIZADOS ===== */
-    #testBtn {
-      background: linear-gradient(135deg, #2a2a2a, #333333);
-      border-color: #3a3a3a;
-    }
-
-    #clearBtn {
-      background: linear-gradient(135deg, #2a2a2a, #333333);
-      border-color: #3a3a3a;
-    }
-
-    #undoBtn {
-      background: linear-gradient(135deg, #2a2a2a, #333333);
-      border-color: #3a3a3a;
-    }
-
-    #exportBtn {
-      background: linear-gradient(135deg, #2a2a2a, #333333);
-      border-color: #3a3a3a;
-    }
-
-    #uploadBtn {
-      background: linear-gradient(135deg, #2a2a2a, #333333);
-      border-color: #3a3a3a;
-    }
-
-    /* ===== CURSOR PARA ÍCONES ===== */
-    .icon-btn, #voxel-counter-icon {
-      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none"><defs><filter id="shadow" x="-50%%" y="-50%%" width="200%%" height="200%%"><feDropShadow dx="1.5" dy="1.5" stdDeviation="1.5" flood-color="rgba(0,0,0,0.7)"/></filter></defs><path d="M5 5 C5 5 5.5 5 6 5.2 L22 14 C22.6 14.3 22.6 14.7 22 15 L14 17 C13.5 17.1 13.2 17.4 13.1 17.9 L11.5 24 C11.3 24.5 10.9 24.5 10.7 24 L5 7.5 C4.8 6.9 4.8 5.3 5 5 Z" fill="black" stroke="white" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" filter="url(%23shadow)"/></svg>') 5 5, pointer;
-    }
-
-    .icon-btn:hover, #voxel-counter-icon:hover {
-      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none"><defs><filter id="shadow" x="-50%%" y="-50%%" width="200%%" height="200%%"><feDropShadow dx="1.5" dy="1.5" stdDeviation="1.7" flood-color="rgba(0,0,0,0.8)"/></filter></defs><path d="M5 5 C5 5 5.5 5 6 5.2 L22 14 C22.6 14.3 22.6 14.7 22 15 L14 17 C13.5 17.1 13.2 17.4 13.1 17.9 L11.5 24 C11.3 24.5 10.9 24.5 10.7 24 L5 7.5 C4.8 6.9 4.8 5.3 5 5 Z" fill="%23222222" stroke="%23fbbf24" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(%23shadow)"/></svg>') 5 5, pointer;
-    }
-
-    /* ===== CURSOR CUSTOMIZADO MODERNO COM CANTOS ARREDONDADOS ===== */
-    #three-canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-      background: radial-gradient(circle at center, #1a1a1a 0%, #0f0f0f 100%);
-      border-radius: 0;
-      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34" fill="none"><defs><filter id="shadow" x="-50%%" y="-50%%" width="200%%" height="200%%"><feDropShadow dx="2" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.8)"/></filter></defs><path d="M6 6 C6 6 6.5 6 7 6.2 L25 16 C25.8 16.4 25.8 16.9 25 17.3 L16 19.5 C15.3 19.7 15 20.1 14.8 20.8 L12.8 28 C12.6 28.7 12 28.7 11.8 28 L6 8.5 C5.7 7.8 5.7 6.3 6 6 Z" fill="black" stroke="white" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" filter="url(%23shadow)"/><path d="M8 9 L12 18 L16 20 L23 17.5" stroke="rgba(255,255,255,0.3)" stroke-width="1" fill="none" stroke-linecap="round"/></svg>') 6 6, auto;
-      /* Melhorar responsividade do trackpad */
-      touch-action: manipulation;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-touch-callout: none;
-    }
-
-    #three-canvas:active {
-      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34" fill="none"><defs><filter id="shadow" x="-50%%" y="-50%%" width="200%%" height="200%%"><feDropShadow dx="2" dy="2" stdDeviation="2.2" flood-color="rgba(0,0,0,0.9)"/></filter></defs><path d="M6 6 C6 6 6.5 6 7 6.2 L25 16 C25.8 16.4 25.8 16.9 25 17.3 L16 19.5 C15.3 19.7 15 20.1 14.8 20.8 L12.8 28 C12.6 28.7 12 28.7 11.8 28 L6 8.5 C5.7 7.8 5.7 6.3 6 6 Z" fill="%23222222" stroke="%23fbbf24" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" filter="url(%23shadow)"/><path d="M8 9 L12 18 L16 20 L23 17.5" stroke="rgba(251,191,36,0.4)" stroke-width="1.1" fill="none" stroke-linecap="round"/></svg>') 6 6, auto;
-    }
-
-    /* ===== MELHORIAS PARA TRACKPAD ===== */
-    #three-canvas.trackpad-mode {
-      cursor: crosshair;
-    }
-
-    #three-canvas.trackpad-dragging {
-      cursor: grabbing !important;
-    }
-
-    /* Feedback visual melhorado para trackpad */
-    .trackpad-hint {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.8);
-      color: #ffffff;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 12px;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      z-index: 1000;
-    }
-
-    .trackpad-hint.visible {
-      opacity: 1;
-    }
-
-    /* Suporte melhor para dispositivos touch */
-    @media (pointer: coarse) {
-      #three-canvas {
-        touch-action: pan-x pan-y pinch-zoom;
-      }
-      
-      .icon-btn {
-        min-height: 44px;
-        min-width: 44px;
-      }
-      
-      .ai-btn {
-        min-height: 44px;
-        padding: 12px 16px;
-      }
-    }
-
-    /* ===== CURSOR PARA OUTROS ELEMENTOS ===== */
-    .btn, .color-btn, #reference-upload {
-      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none"><defs><filter id="shadow" x="-50%%" y="-50%%" width="200%%" height="200%%"><feDropShadow dx="1.5" dy="1.5" stdDeviation="1.5" flood-color="rgba(0,0,0,0.7)"/></filter></defs><path d="M5 5 C5 5 5.5 5 6 5.2 L22 14 C22.6 14.3 22.6 14.7 22 15 L14 17 C13.5 17.1 13.2 17.4 13.1 17.9 L11.5 24 C11.3 24.5 10.9 24.5 10.7 24 L5 7.5 C4.8 6.9 4.8 5.3 5 5 Z" fill="black" stroke="white" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" filter="url(%23shadow)"/></svg>') 5 5, pointer;
-    }
-
-    .btn:hover, .color-btn:hover, #reference-upload:hover {
-      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none"><defs><filter id="shadow" x="-50%%" y="-50%%" width="200%%" height="200%%"><feDropShadow dx="1.5" dy="1.5" stdDeviation="1.7" flood-color="rgba(0,0,0,0.8)"/></filter></defs><path d="M5 5 C5 5 5.5 5 6 5.2 L22 14 C22.6 14.3 22.6 14.7 22 15 L14 17 C13.5 17.1 13.2 17.4 13.1 17.9 L11.5 24 C11.3 24.5 10.9 24.5 10.7 24 L5 7.5 C4.8 6.9 4.8 5.3 5 5 Z" fill="%23222222" stroke="%23fbbf24" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" filter="url(%23shadow)"/></svg>') 5 5, pointer;
-    }
-
-    /* ===== ANIMAÇÕES MODERNAS ===== */
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    @keyframes slideInLeft {
-      from { transform: translateX(-20px); opacity: 0; }
-      to { transform: translateX(0); opacity: 1; }
-    }
-
-    @keyframes slideInUp {
-      from { transform: translateY(20px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    @keyframes shimmer {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(100%); }
-    }
-
-    /* ===== ANIMAÇÕES DE ENTRADA SUTIS ===== */
-    #left-panel {
-      animation: slideInLeft 0.4s ease-out;
-    }
-
-    #icon-toolbar {
-      animation: floatIn 0.5s ease-out 0.2s both;
-    }
-
-    #three-container {
-      animation: fadeIn 0.6s ease-out 0.3s both;
-    }
-
-    .icon-btn {
-      animation: fadeIn 0.4s ease-out calc(0.3s + var(--delay, 0) * 0.1s) both;
-    }
-
-    @keyframes floatIn {
-      from {
-        opacity: 0;
-        transform: translateY(20px) scale(0.9);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
-    }
-
-    
-
-    #color-picker-container {
-      animation: slideInUp 0.5s ease-out 0.3s both;
-    }
-
-
-
-    /* ===== ESTADOS DE FOCO MINIMALISTAS ===== */
-    .btn:focus-visible,
-    .color-btn:focus-visible {
-      outline: 1px solid #666666;
-      outline-offset: 1px;
-    }
-
-    /* ===== REMOVER ANIMAÇÕES COMPLEXAS ===== */
-    .btn::before,
-    .btn::after,
-    .color-btn::before {
-      display: none;
-    }
-
-    /* ===== RESPONSIVIDADE ===== */
-    @media (max-width: 1024px) {
-      #left-panel {
-        width: 280px;
-      }
-      
-      #toolbar {
-        padding: 12px 16px;
-        gap: 12px;
-      }
-      
-      .btn {
-        padding: 8px 16px;
-        font-size: 12px;
-      }
-      
-      
-    }
-
-    @media (max-width: 768px) {
-      #left-panel {
-        width: 260px;
-      }
-      
-      #color-section {
-        padding: 14px;
-      }
-      
-      
-
-      #color-gradient {
-        height: 100px;
-      }
-
-      #toolbar {
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-
-      .button-group {
-        gap: 6px;
-      }
-
-      .btn {
-        padding: 8px 12px;
-        font-size: 11px;
-      }
-
-      /* ===== RESPONSIVIDADE DA IMAGEM FLUTUANTE ===== */
-      #floating-reference {
-        width: 250px;
-        max-width: 90vw;
-        top: 10px;
-        right: 10px;
-      }
-
-      #floating-reference-controls button {
-        width: 20px;
-        height: 20px;
-        font-size: 10px;
-      }
-    }
-
-    /* ===== ESTADOS DE FOCO MODERNOS ===== */
-    .btn:focus-visible,
-    .color-btn:focus-visible,
-    #reference-upload:focus-visible,
-    .slider:focus-visible {
-      outline: 2px solid #7c3aed;
-      outline-offset: 2px;
-    }
-
-    /* ===== SCROLLBAR CUSTOMIZADA ===== */
-    ::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: #1a1a1a;
-      border-radius: 3px;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: linear-gradient(180deg, #7c3aed, #a855f7);
-      border-radius: 3px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: linear-gradient(180deg, #8b5cf6, #c084fc);
-    }
-
-    /* ===== ESTILOS DE IA REMOVIDOS ===== */
-
-    /* ===== SIDEBAR DE HISTÓRICO DE UPLOADS ===== */
-    #upload-history-sidebar {
-      width: 320px;
-      background: rgba(26, 26, 26, 0.95);
-      backdrop-filter: blur(15px);
-      border: 1px solid rgba(45, 45, 45, 0.8);
-      border-radius: 16px;
-      display: none;
-      flex-direction: column;
-      overflow: hidden;
-      font-size: 13px;
-      position: fixed;
-      left: 20px;
-      top: 20px;
-      bottom: 20px;
-      z-index: 100;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-      transition: all 0.3s ease;
-    }
-
-    #upload-history-sidebar.show {
-      display: flex;
-      animation: slideInRight 0.3s ease-out;
-    }
-
-    .upload-section h4 {
-      margin: 0 0 12px 0;
-      font-size: 13px;
-      font-weight: 600;
-      color: #cccccc;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .upload-history-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-height: 200px;
-    }
-
-    .upload-history-item {
-      background: rgba(42, 42, 42, 0.8);
-      border: 1px solid rgba(58, 58, 58, 0.5);
-      border-radius: 10px;
-      padding: 12px 16px;
-      transition: all 0.3s ease;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .upload-history-item:hover {
-      background: rgba(50, 50, 50, 0.9);
-      border-color: rgba(70, 70, 70, 0.8);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    }
-
-    .upload-history-item.current {
-      background: rgba(124, 58, 237, 0.2);
-      border-color: rgba(124, 58, 237, 0.6);
-      box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.3);
-    }
-
-    .upload-history-item.current::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 4px;
-      background: linear-gradient(180deg, #7c3aed, #a855f7);
-      border-radius: 0 2px 2px 0;
-    }
-
-    .upload-item-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-
-    .upload-item-info {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex: 1;
-      min-width: 0;
-    }
-
-    .upload-item-icon {
-      width: 20px;
-      height: 20px;
-      flex-shrink: 0;
-      color: #7c3aed;
-    }
-
-    .upload-item-details {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .upload-item-name {
-      font-size: 14px;
-      font-weight: 600;
-      color: #ffffff;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      margin-bottom: 2px;
-    }
-
-    .upload-item-meta {
-      font-size: 11px;
-      color: #999999;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .upload-item-actions {
-      display: flex;
-      gap: 4px;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-
-    .upload-history-item:hover .upload-item-actions {
-      opacity: 1;
-    }
-
-    .upload-action-btn {
-      width: 24px;
-      height: 24px;
-      border: none;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #cccccc;
-    }
-
-    .upload-action-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-      color: #ffffff;
-      transform: scale(1.1);
-    }
-
-    .upload-action-btn.reload:hover {
-      background: rgba(124, 58, 237, 0.3);
-      color: #a855f7;
-    }
-
-    .upload-action-btn.delete:hover {
-      background: rgba(239, 68, 68, 0.3);
-      color: #ef4444;
-    }
-
-    .upload-item-stats {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 11px;
-      color: #888888;
-      margin-top: 6px;
-    }
-
-    .upload-stat {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 20px;
-      text-align: center;
-      color: #666666;
-    }
-
-    .empty-state svg {
-      margin-bottom: 16px;
-      opacity: 0.5;
-    }
-
-    .empty-state p {
-      margin: 0 0 8px 0;
-      font-size: 14px;
-      font-weight: 500;
-    }
-
-  #upload-history-sidebar .upload-history-empty {
-    text-align: center;
-    padding: 40px 20px;
-    color: #666;
-  }
-
-  #upload-history-sidebar .upload-history-empty svg {
-    margin-bottom: 16px;
-    opacity: 0.5;
-  }
-
-  #upload-history-sidebar .upload-history-empty p {
-    margin: 8px 0;
-    font-weight: 500;
-  }
-
-  #upload-history-sidebar .upload-history-empty small {
-    color: #888;
-    font-size: 12px;
-  }
-
-  #upload-history-sidebar .upload-history-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    transition: background-color 0.2s ease;
-  }
-
-  #upload-history-sidebar .upload-history-item:hover {
-    background-color: rgba(255, 255, 255, 0.05);
-  }
-
-  #upload-history-sidebar .upload-history-item:last-child {
-    border-bottom: none;
-  }
-
-  #upload-history-sidebar .upload-item-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  #upload-history-sidebar .upload-item-name {
-    font-weight: 500;
-    color: #fff;
-    margin-bottom: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  #upload-history-sidebar .upload-item-meta {
-    font-size: 12px;
-    color: #aaa;
-  }
-
-  #upload-history-sidebar .upload-item-actions {
-    display: flex;
-    gap: 8px;
-    margin-left: 12px;
-  }
-
-  #upload-history-sidebar .upload-item-btn {
-    background: none;
-    border: none;
-    color: #888;
-    cursor: pointer;
-    padding: 6px;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  #upload-history-sidebar .upload-item-btn:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #fff;
-  }
-
-  #upload-history-sidebar .upload-item-btn:active {
-    transform: scale(0.95);
-  }
-
-  #upload-history-sidebar .reload-btn:hover {
-    color: #4ade80;
-  }
-
-  #upload-history-sidebar .delete-btn:hover {
-    color: #ef4444;
-  }
-
-  /* Estilos para o campo de upload */
-  #upload-history-sidebar .upload-input-container {
-    margin-bottom: 20px;
-  }
-
-  #upload-history-sidebar .upload-input-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 16px;
-    background: rgba(42, 42, 42, 0.8);
-    border: 1px solid rgba(58, 58, 58, 0.5);
-    border-radius: 10px;
-    color: #cccccc;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 13px;
-    font-weight: 500;
-    text-align: center;
-    justify-content: center;
-  }
-
-  #upload-history-sidebar .upload-input-label:hover {
-    background: rgba(50, 50, 50, 0.9);
-    border-color: rgba(70, 70, 70, 0.8);
-    color: #ffffff;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  #upload-history-sidebar .upload-input-label:active {
-    transform: translateY(0);
-  }
-
-  #upload-history-sidebar .upload-input-label svg {
-    flex-shrink: 0;
-  }
-    #room-panel {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      bottom: 20px;
-      width: 320px;
-      background: rgba(26, 26, 26, 0.8);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(45, 45, 45, 0.6);
-      border-radius: 16px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      z-index: 100;
-      display: none;
-      flex-direction: column;
-      overflow: hidden;
-      animation: slideInRight 0.3s ease-out;
-      transition: all 0.3s ease;
-    }
-
-    #room-panel.show {
-      display: flex;
-    }
-
-    /* Header do painel da sala */
-    .room-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid rgba(45, 45, 45, 0.6);
-      position: relative;
-    }
-
-    .room-header h3 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #ffffff;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .room-header h3 svg {
-      color: var(--accent-cyan);
-      flex-shrink: 0;
-    }
-
-    .room-header .room-description {
-      font-size: 12px;
-      color: var(--text-secondary);
-      margin: 4px 0 0 0;
-      line-height: 1.4;
-    }
-
-    /* Conteúdo do painel da sala */
-    .room-content {
-      padding: 16px 20px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      flex: 1;
-    }
-
-    .room-content::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    .room-content::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .room-content::-webkit-scrollbar-thumb {
-      background: rgba(70, 70, 70, 0.8);
-      border-radius: 2px;
-    }
-
-    .room-section {
-      margin-bottom: 16px;
-    }
-
-    .room-section:last-child {
-      margin-bottom: 0;
-    }
-
-    .room-section h4 {
-      margin: 0 0 10px 0;
-      font-size: 13px;
-      font-weight: 600;
-      color: #cccccc;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .room-section h4 svg {
-      color: #ffffff;
-      flex-shrink: 0;
-    }
-
-    /* Botões para o modo sala */
-    .room-btn {
-        padding: 10px 16px;
-        border: 1px solid rgba(58, 58, 58, 0.5);
-        border-radius: 10px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-size: 13px;
-        background: rgba(42, 42, 42, 0.7);
-        backdrop-filter: blur(5px);
-        color: #cccccc;
-        width: 100%;
-        margin-bottom: 10px;
-        text-align: center;
-    }
-
-    .room-btn:hover {
-        background: rgba(50, 50, 50, 0.9);
-        border-color: rgba(70, 70, 70, 0.8);
-        color: #ffffff;
-    }
-
-    /* Input file customizado */
-    .room-file-input {
-        display: block;
-        width: 100%;
-        padding: 12px 14px;
-        border: 1px solid rgba(58, 58, 58, 0.5);
-        border-radius: 10px;
-        background: rgba(42, 42, 42, 0.7);
-        backdrop-filter: blur(5px);
-        color: #cccccc;
-        font-size: 12px;
-        margin-bottom: 10px;
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-
-    .room-file-input:hover {
-        border-color: rgba(70, 70, 70, 0.8);
-        background: rgba(50, 50, 50, 0.9);
-    }
-
-    .room-file-input::file-selector-button {
-        background: rgba(58, 58, 58, 0.8);
-        backdrop-filter: blur(5px);
-        color: #ffffff;
-        border: 1px solid rgba(58, 58, 58, 0.5);
-        padding: 8px 14px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 12px;
-        margin-right: 10px;
-        transition: all 0.3s ease;
-    }
-
-    .room-file-input::file-selector-button:hover {
-        background: rgba(70, 70, 70, 0.9);
-        border-color: rgba(90, 90, 90, 0.8);
-    }
-
-    
-
-    .room-objects-list:empty::before {
-      content: "Nenhum objeto carregado";
-      display: block;
-      text-align: center;
-      color: #666666;
-      font-size: 12px;
-      padding: 20px;
-      font-style: italic;
-    }
-
-    /* ===== ESTILOS PARA ITENS DE OBJETO ===== */
-    .room-object-card {
-      background: rgba(42, 42, 42, 0.7);
-      border: 1px solid rgba(58, 58, 58, 0.5);
-      border-radius: 10px;
-      margin-bottom: 10px;
-      transition: all 0.3s ease;
-      overflow: hidden;
-    }
-
-    .room-object-card:hover {
-      background: rgba(50, 50, 50, 0.9);
-      border-color: rgba(70, 70, 70, 0.8);
-    }
-
-    .room-object-card.selected {
-      background: rgba(124, 58, 237, 0.2);
-      border-color: rgba(124, 58, 237, 0.6);
-    }
-
-    .card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      border-bottom: 1px solid rgba(58, 58, 58, 0.5);
-      cursor: pointer;
-    }
-
-    .card-header h5 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #ffffff;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .card-header h5 svg {
-      color: var(--accent-cyan);
-      width: 16px;
-      height: 16px;
-    }
-
-    .card-toggle-icon {
-      transition: transform 0.3s ease;
-      color: #cccccc;
-      transform: rotate(180deg); /* Start rotated to show expanded state */
-    }
-
-    .card-body {
-      padding: 16px;
-      display: flex; /* Controls visible by default */
-      flex-direction: column;
-      gap: 15px; /* Increased gap for better spacing */
-    }
-
-    .card-body.collapsed {
-        display: none;
-    }
-
-    .card-body input[type="range"] {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 100%;
-      height: 8px;
-      background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary), var(--accent-tertiary)); /* Vibrant gradient */
-      border-radius: 5px;
-      outline: none;
-      transition: opacity .2s;
-    }
-
-    .card-body input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #ffffff;
-      cursor: pointer;
-      box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-    }
-
-    .card-body input[type="range"]::-moz-range-thumb {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #ffffff;
-      cursor: pointer;
-      box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-    }
-
-    .new-transform-slider-group, .material-slider-group {
-      display: flex;
-      align-items: center;
-      gap: 10px; /* Consistent spacing */
-      padding: 8px 0; /* Add some vertical padding */
-    }
-
-    .new-transform-slider-group .input-group-label, .material-slider-group .material-label {
-      font-size: 13px; /* Slightly larger for readability */
-      font-weight: 500;
-      color: var(--text-secondary);
-      min-width: 25px; /* Align labels */
-      text-align: right;
-    }
-
-    .new-transform-slider-group .slider-value-new, .material-slider-group .slider-value, .scale-slider-container .scale-value {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--text-primary);
-      min-width: 45px; /* Match time-display */
-      text-align: center;
-    }
-
-    .scale-slider-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 0;
-    }
-
-    .scale-slider-container input[type="range"] {
-      flex-grow: 1;
-    }
-
-    .transform-section {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .transform-header {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-    }
-
-    .transform-inputs {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-
-    .input-group {
-      display: flex;
-      align-items: center;
-      background: var(--bg-tertiary); /* Use defined variable */
-      border-radius: 8px;
-      border: 1px solid var(--border-primary); /* Use defined variable */
-    }
-
-    .input-group-label {
-      padding: 8px 10px;
-      font-size: 12px;
-      font-weight: 600;
-      color: #cccccc;
-      border-right: 1px solid rgba(58, 58, 58, 0.5);
-    }
-
-    .transform-input-new {
-      width: 100%;
-      padding: 8px 10px;
-      background: transparent;
-      border: none;
-      color: #ffffff;
-      font-size: 13px;
-      text-align: center;
-    }
-
-    .transform-input-new:focus {
-      outline: none;
-      background: rgba(124, 58, 237, 0.1);
-    }
-
-    .card-footer {
-      padding: 12px 16px;
-      border-top: 1px solid rgba(58, 58, 58, 0.5);
-      display: flex;
-      justify-content: flex-end;
-    }
-
-    .remove-object-btn-new {
-        padding: 8px 14px;
-        background: rgba(239, 68, 68, 0.2);
-        color: #ef4444;
-        border: 1px solid rgba(239, 68, 68, 0.4);
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: 500;
-        transition: all 0.3s ease;
-    }
-
-    .remove-object-btn-new:hover {
-        background: rgba(239, 68, 68, 0.4);
-        color: #ffffff;
-        border-color: rgba(239, 68, 68, 0.6);
-    }
-
-    /* ===== ESTILOS PARA CONTROLES DO MODO CAMINHADA ===== */
-    .room-controls {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .room-control-btn {
-      padding: 12px 16px;
-      border: 1px solid rgba(45, 45, 45, 0.6);
-      border-radius: 10px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      font-size: 13px;
-      background: rgba(42, 42, 42, 0.8);
-      backdrop-filter: blur(8px) saturate(160%);
-      -webkit-backdrop-filter: blur(8px) saturate(160%);
-      color: rgba(255, 255, 255, 0.9);
-      position: relative;
-      overflow: hidden;
-      width: 100%;
-      box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.2),
-        0 0 0 1px rgba(255, 255, 255, 0.03) inset;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    .room-control-btn::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.08),
-        transparent
-      );
-      transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: -1;
-    }
-
-    .room-control-btn::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: linear-gradient(
-        135deg,
-        rgba(124, 58, 237, 0.02) 0%,
-        rgba(168, 85, 247, 0.01) 50%,
-        rgba(196, 181, 253, 0.02) 100%
-      );
-      border-radius: 10px;
-      pointer-events: none;
-      z-index: -2;
-    }
-
-    .room-control-btn:hover {
-      background: rgba(42, 42, 42, 0.9);
-      border-color: rgba(45, 45, 45, 0.8);
-      color: rgba(255, 255, 255, 1);
-      box-shadow:
-        0 4px 16px rgba(0, 0, 0, 0.3),
-        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
-      transform: translateY(-1px) scale(1.01);
-    }
-
-    .room-control-btn:hover::before {
-      left: 100%;
-    }
-
-    .room-control-btn:active {
-      transform: translateY(0) scale(1);
-      box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.2),
-        0 0 0 1px rgba(255, 255, 255, 0.03) inset;
-    }
-
-    .room-control-btn.active {
-      background: rgba(124, 58, 237, 0.8);
-      border-color: rgba(124, 58, 237, 0.6);
-      color: rgba(255, 255, 255, 1);
-      box-shadow:
-        0 4px 20px rgba(124, 58, 237, 0.3),
-        0 0 0 1px rgba(124, 58, 237, 0.3),
-        0 0 0 1px rgba(255, 255, 255, 0.08) inset;
-    }
-
-    .room-control-btn.active::after {
-      background: linear-gradient(
-        135deg,
-        rgba(124, 58, 237, 0.08) 0%,
-        rgba(168, 85, 247, 0.05) 50%,
-        rgba(196, 181, 253, 0.08) 100%
-      );
-    }
-
-    .room-control-btn.active:hover {
-      background: rgba(124, 58, 237, 0.9);
-      border-color: rgba(124, 58, 237, 0.8);
-      box-shadow:
-        0 6px 24px rgba(124, 58, 237, 0.4),
-        0 0 0 1px rgba(124, 58, 237, 0.4),
-        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-    }
-
-    .room-control-btn svg {
-      width: 16px;
-      height: 16px;
-      flex-shrink: 0;
-      transition: all 0.3s ease;
-    }
-
-    .room-control-btn.active svg {
-      color: rgba(255, 255, 255, 1);
-    }
-  </style>
-
-  <!-- Estilos para Controles de Transformação -->
-  <style>
-    .transform-controls-container {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .transform-controls-card {
-      background: rgba(42, 42, 42, 0.7);
-      border: 1px solid rgba(58, 58, 58, 0.5);
-      border-radius: 10px;
-      padding: 16px;
-      backdrop-filter: blur(5px);
-      transition: all 0.3s ease;
-    }
-
-    .transform-controls-card:hover {
-      background: rgba(50, 50, 50, 0.9);
-      border-color: rgba(70, 70, 70, 0.8);
-    }
-
-    .transform-controls-card h5 {
-      margin: 0 0 12px 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #ffffff;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .transform-controls-card h5 svg {
-      color: var(--accent-cyan);
-      width: 16px;
-      height: 16px;
-    }
-
-    .transform-controls-group {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .transform-control-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 8px 0;
-    }
-
-    .transform-control-label {
-      font-size: 13px;
-      font-weight: 500;
-      color: #cccccc;
-      min-width: 60px;
-      text-align: right;
-    }
-
-    .transform-control-slider {
-      flex: 1;
-      -webkit-appearance: none;
-      appearance: none;
-      height: 6px;
-      background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary), var(--accent-tertiary));
-      border-radius: 3px;
-      outline: none;
-      transition: opacity 0.2s;
-    }
-
-    .transform-control-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #ffffff;
-      cursor: pointer;
-      box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
-    }
-
-    .transform-control-slider::-moz-range-thumb {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #ffffff;
-      cursor: pointer;
-      box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
-    }
-
-    .transform-control-value {
-      font-size: 13px;
-      font-weight: 500;
-      color: #ffffff;
-      min-width: 50px;
-      text-align: center;
-      background: rgba(58, 58, 58, 0.3);
-      padding: 4px 8px;
-      border-radius: 6px;
-    }
-
-    .transform-section-divider {
-      height: 1px;
-      background: rgba(58, 58, 58, 0.5);
-      margin: 8px 0;
-    }
-
-    .transform-controls-empty {
-      text-align: center;
-      color: #666666;
-      font-size: 12px;
-      padding: 20px;
-      font-style: italic;
-    }
-
-    .transform-controls-empty svg {
-      width: 32px;
-      height: 32px;
-      margin-bottom: 8px;
-      opacity: 0.5;
-    }
-  </style>
-
-  <!-- Estilos da Barra Flutuante -->
-  <style>
-    #top-floating-bar {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      background: rgba(26, 26, 26, 0.8);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(45, 45, 45, 0.6);
-      border-radius: 16px;
-      padding: 8px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      transition: all 0.3s ease;
-      opacity: 0;
-      transform: translateX(-50%) translateY(-10px);
-      display: none; /* Inicialmente escondida */
-    }
-
-    #top-floating-bar.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-      display: block;
-    }
-
-    .top-bar-content {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .top-bar-btn {
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      background: rgba(42, 42, 42, 0.7);
-      border: 1px solid rgba(58, 58, 58, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      margin-bottom: 0;
-      position: relative;
-      color: #cccccc;
-      backdrop-filter: blur(5px);
-    }
-
-    .top-bar-btn:hover {
-      background: rgba(50, 50, 50, 0.9);
-      border-color: rgba(70, 70, 70, 0.8);
-      color: #ffffff;
-      transform: none;
-      box-shadow: none;
-    }
-
-    .top-bar-btn.active {
-      background: rgba(124, 58, 237, 0.8);
-      border-color: rgba(124, 58, 237, 0.6);
-      color: rgba(255, 255, 255, 1);
-    }
-
-    .top-bar-btn.active:hover {
-      background: rgba(124, 58, 237, 0.9);
-      border-color: rgba(124, 58, 237, 0.8);
-    }
-
-    .top-bar-btn svg {
-      width: 20px;
-      height: 20px;
-      flex-shrink: 0;
-      transition: all 0.3s ease;
-    }
-
-    .top-bar-btn.active svg {
-      color: rgba(255, 255, 255, 1);
-    }
-
-    /* Tooltip para o botão da barra flutuante */
-    .top-bar-btn[data-tooltip]:hover::after {
-      content: attr(data-tooltip);
-      position: absolute;
-      right: 100%;
-      top: 50%;
-      transform: translateY(-50%);
-      margin-right: 12px;
-      padding: 8px 12px;
-      background: rgba(0, 0, 0, 0.9);
-      color: #ffffff;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      white-space: nowrap;
-      z-index: 1000;
-      pointer-events: none;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-      border: 1px solid #3a3a3a;
-    }
-
-    .top-bar-btn[data-tooltip]:hover::before {
-      content: '';
-      position: absolute;
-      right: 100%;
-      top: 50%;
-      transform: translateY(-50%);
-      margin-right: 6px;
-      width: 0;
-      height: 0;
-      border-top: 6px solid transparent;
-      border-bottom: 6px solid transparent;
-      border-left: 6px solid rgba(0, 0, 0, 0.9);
-      z-index: 1000;
-      pointer-events: none;
-    }
-
-    /* Responsividade */
-    @media (max-width: 768px) {
-      #top-floating-bar {
-        top: 10px;
-        padding: 6px;
-      }
-
-      .top-bar-btn {
-        width: 32px;
-        height: 32px;
-      }
-
-      .top-bar-btn svg {
-        width: 16px;
-        height: 16px;
-      }
-    }
-  </style>
 </head>
 <body>
   <div id="main-container">
@@ -2651,14 +130,15 @@
         <div class="upload-section">
           <h4>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7,10 12,15 17,10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14,2 14,8 20,8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
             </svg>
             Histórico de Uploads
           </h4>
           <div id="uploadHistoryList" class="upload-history-list">
-            <!-- Arquivos carregados serão listados aqui -->
+            <!-- Histórico de uploads do editor -->
             <div class="upload-history-empty">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -2844,18 +324,52 @@
       </div>
 
       <div class="room-content">
-        
-
         <div class="room-section">
-          <h4>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
-          </h4>
-          <div id="roomObjectsList" class="room-objects-list">
-            <!-- Objetos serão adicionados dinamicamente aqui -->
+          <div class="upload-section">
+            <h4>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17,8 12,3 7,8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              Carregar Arquivo
+            </h4>
+            <div class="upload-input-container">
+              <input type="file" id="voxel-file-input" accept=".html,.json" multiple style="display: none;">
+              <label for="voxel-file-input" class="upload-input-label">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17,8 12,3 7,8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Escolher arquivo (.html, .json)
+              </label>
+            </div>
+          </div>
+
+          <div class="upload-section">
+            <h4>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7,10 12,15 17,10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Objetos na Sala
+            </h4>
+            <div id="roomUploadHistoryList" class="upload-history-list">
+              <!-- Objetos serão listados aqui dinamicamente -->
+              <div class="upload-history-empty">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14,2 14,8 20,8"/>
+                </svg>
+                <p>Nenhum objeto carregado ainda</p>
+                <small>Use o campo acima para carregar objetos</small>
+              </div>
+            </div>
           </div>
         </div>
+        
 
         <div class="room-section">
           <h4>
@@ -2867,6 +381,218 @@
           </h4>
           <div id="transformControls" class="transform-controls-container">
             <!-- Controles serão adicionados dinamicamente aqui -->
+          </div>
+        </div>
+
+        <!-- Seção de Configuração da Sala -->
+        <div class="room-section">
+          <h4>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9,22 9,12 15,12 15,22"/>
+            </svg>
+            Configuração da Sala
+          </h4>
+          <p class="room-config-description">Personalize as dimensões e texturas do ambiente</p>
+          
+          <!-- Dimensões da Sala -->
+          <div class="room-dimensions">
+            <h5>📏 Dimensões</h5>
+            <div class="dimension-controls">
+              <div class="dimension-input">
+                <label>Largura:</label>
+                <input type="range" id="room-width" min="10" max="50" value="20" step="2">
+                <span id="room-width-value">20m</span>
+              </div>
+              <div class="dimension-input">
+                <label>Altura:</label>
+                <input type="range" id="room-height" min="5" max="20" value="10" step="1">
+                <span id="room-height-value">10m</span>
+              </div>
+              <div class="dimension-input">
+                <label>Profnd.:</label>
+                <input type="range" id="room-depth" min="10" max="50" value="20" step="2">
+                <span id="room-depth-value">20m</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Texturas da Sala -->
+          <div class="room-textures">
+            <h5>🎨 Texturas do Ambiente</h5>
+            <div class="room-texture-selectors">
+              <div class="room-texture-group">
+                <label>Chão:</label>
+                <select id="floor-texture">
+                  <option value="wood_oak">Madeira Carvalho</option>
+                  <option value="marble_white">Mármore Branco</option>
+                  <option value="brick_red">Tijolo Vermelho</option>
+                  <option value="metal_steel">Metal Aço</option>
+                  <option value="grass_green">Grama Verde</option>
+                </select>
+              </div>
+              <div class="room-texture-group">
+                <label>Paredes:</label>
+                <select id="walls-texture">
+                  <option value="wallpaper_stripes" selected>Papel de Parede</option>
+                  <option value="brick_red">Tijolo Vermelho</option>
+                  <option value="wood_oak">Madeira Carvalho</option>
+                  <option value="marble_white">Mármore Branco</option>
+                  <option value="metal_steel">Metal Aço</option>
+                </select>
+              </div>
+              <div class="room-texture-group">
+                <label>Teto:</label>
+                <select id="ceiling-texture">
+                  <option value="marble_white" selected>Mármore Branco</option>
+                  <option value="wood_oak">Madeira Carvalho</option>
+                  <option value="wallpaper_stripes">Papel de Parede</option>
+                  <option value="metal_steel">Metal Aço</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Botões de Ação -->
+          <div class="room-config-actions">
+            <button id="apply-room-config" class="room-config-btn primary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20,6 9,17 4,12"/>
+              </svg>
+              Aplicar Configuração
+            </button>
+            <button id="reset-room-config" class="room-config-btn secondary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23,4 23,10 17,10"/>
+                <path d="M20.49,15a9,9,0,1,1-2.12-9.36L23,10"/>
+              </svg>
+              Resetar
+            </button>
+          </div>
+        </div>
+
+        <!-- Seção de Portas e Janelas -->
+        <div class="room-section">
+          <h4>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+            Portas e Janelas
+          </h4>
+          <p class="door-window-description">Adicione portas e janelas funcionais que controlam luz</p>
+          
+          <!-- Controles de Portas -->
+          <div class="door-window-controls">
+            <h5>🚪 Portas</h5>
+            <div class="door-window-creator">
+              <div class="creator-row">
+                <select id="door-wall-select">
+                  <option value="front">Parede Frontal</option>
+                  <option value="back">Parede Traseira</option>
+                  <option value="left">Parede Esquerda</option>
+                  <option value="right">Parede Direita</option>
+                </select>
+                <input type="text" id="door-id" placeholder="ID da porta" value="porta1">
+              </div>
+              <div class="creator-row">
+                <label>Posição X:</label>
+                <input type="range" id="door-pos-x" min="-5" max="5" value="0" step="0.1">
+                <span id="door-pos-x-value">0.0m</span>
+              </div>
+              <button id="create-door-btn" class="door-window-btn primary">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Criar Porta
+              </button>
+            </div>
+            
+            <!-- Lista de Portas -->
+            <div class="door-window-list" id="doors-list">
+              <!-- Portas serão listadas aqui -->
+            </div>
+          </div>
+          
+          <!-- Controles de Janelas -->
+          <div class="door-window-controls">
+            <h5>🪟 Janelas</h5>
+            <div class="door-window-creator">
+              <div class="creator-row">
+                <select id="window-wall-select">
+                  <option value="front">Parede Frontal</option>
+                  <option value="back">Parede Traseira</option>
+                  <option value="left">Parede Esquerda</option>
+                  <option value="right">Parede Direita</option>
+                </select>
+                <input type="text" id="window-id" placeholder="ID da janela" value="janela1">
+              </div>
+              <div class="creator-row">
+                <label>Posição X:</label>
+                <input type="range" id="window-pos-x" min="-5" max="5" value="0" step="0.1">
+                <span id="window-pos-x-value">0.0m</span>
+              </div>
+              <div class="creator-row">
+                <label>Altura Y:</label>
+                <input type="range" id="window-pos-y" min="1.0" max="3" value="1.5" step="0.1">
+                <span id="window-pos-y-value">1.5m</span>
+              </div>
+              <div class="creator-row">
+                <label>
+                  <input type="checkbox" id="window-can-open" checked>
+                  <span>Pode abrir</span>
+                </label>
+              </div>
+              <button id="create-window-btn" class="door-window-btn primary">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Criar Janela
+              </button>
+            </div>
+            
+            <!-- Lista de Janelas -->
+            <div class="door-window-list" id="windows-list">
+              <!-- Janelas serão listadas aqui -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Seção de Texturas para Voxels -->
+        <div class="room-section">
+          <h4>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="9" cy="9" r="2"/>
+              <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+            </svg>
+            Texturas para Voxels
+          </h4>
+          <p class="texture-description">Selecione texturas para aplicar aos voxels criados</p>
+          
+          <div class="texture-selector">
+            <div class="texture-grid" id="texture-grid">
+              <!-- Texturas serão carregadas dinamicamente -->
+            </div>
+            
+            <div class="texture-controls">
+              <div class="texture-mode-selector">
+                <label>
+                  <input type="radio" name="textureMode" value="single" checked>
+                  <span>Textura única</span>
+                </label>
+                <label>
+                  <input type="radio" name="textureMode" value="per-face">
+                  <span>Por face</span>
+                </label>
+              </div>
+              
+              <div class="current-texture-display">
+                <span>Textura atual: </span>
+                <span id="current-texture-name">Nenhuma</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2959,6 +685,13 @@
         </svg>
       </div>
       
+      <div class="icon-btn" id="tutorialBtn" data-tooltip="Tutoriais">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+          <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+      </div>
+      
       <!-- Contador de Voxels na parte inferior -->
       <div id="voxel-counter-icon" data-tooltip="Voxel Count">
         <div id="voxelCount">0</div>
@@ -3026,8 +759,13 @@
       import('./modules/mouseSystem.js'),
       import('./modules/roomMode.js'),
       import('./modules/walkBuildMode.js'),
-      import('./modules/timeSystem.js')
-    ]).then(([colorModule, fileUploadModule, referenceModule, mouseModule, roomModule, walkBuildModule, timeModule]) => {
+      import('./modules/timeSystem.js'),
+      import('./modules/tutorialSystem.js'),
+      import('./modules/textureSystem.js'),
+      import('./modules/roomConfigSystem.js'),
+      import('./modules/doorWindowSystem.js'),
+      import('./tutorials/dragObjectsTutorial.js')
+    ]).then(([colorModule, fileUploadModule, referenceModule, mouseModule, roomModule, walkBuildModule, timeModule, tutorialModule, textureModule, roomConfigModule, doorWindowModule, dragTutorialModule]) => {
       window.ColorSystem = colorModule.ColorSystem;
       window.FileUploadSystem = fileUploadModule.FileUploadSystem;
       window.ReferenceImageSystem = referenceModule.ReferenceImageSystem;
@@ -3035,6 +773,11 @@
       window.RoomModeSystem = roomModule.RoomModeSystem;
       window.WalkBuildModeSystem = walkBuildModule.WalkBuildModeSystem;
       window.TimeSystem = timeModule.TimeSystem;
+      window.TutorialSystem = tutorialModule.TutorialSystem;
+      window.TextureSystem = textureModule.TextureSystem;
+      window.RoomConfigSystem = roomConfigModule.RoomConfigSystem;
+      window.DoorWindowSystem = doorWindowModule.DoorWindowSystem;
+      window.dragObjectsTutorial = dragTutorialModule.dragObjectsTutorial;
       
       // Carregar o script principal após módulos estarem prontos
       const script = document.createElement('script');

@@ -96,6 +96,13 @@ export class WalkBuildModeSystem {
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
 
+    // Sistema de seleção e movimentação de objetos
+    this.selectedObject = null;
+    this.isDraggingObject = false;
+    this.dragStartPosition = new THREE.Vector3();
+    this.dragOffset = new THREE.Vector3();
+    this.objectOutline = null;
+
     // Elementos DOM
     this.crosshair = null;
 
@@ -289,6 +296,13 @@ export class WalkBuildModeSystem {
   onKeyDown(event) {
     if (!this.isActive) return;
 
+    // Tecla G para ativar/desativar modo de arrastar objeto
+    if (event.code === 'KeyG' && this.selectedObject) {
+      this.toggleObjectDragging();
+      event.preventDefault();
+      return;
+    }
+
     switch(event.code) {
       case 'KeyW':
       case 'ArrowUp':
@@ -407,6 +421,13 @@ export class WalkBuildModeSystem {
     const movementX = event.movementX || 0;
     const movementY = event.movementY || 0;
 
+    // Se estiver arrastando um objeto, mover o objeto
+    if (this.isDraggingObject && this.selectedObject) {
+      this.moveSelectedObject(movementX, movementY);
+      return;
+    }
+
+    // Caso contrário, mover a câmera normalmente
     // Aplicar sensibilidade do mouse
     const sensitivity = this.mouseSensitivity;
     this.yaw -= movementX * sensitivity;
@@ -430,22 +451,44 @@ export class WalkBuildModeSystem {
     // Atualizar raycaster
     this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.walkCamera);
 
-    // Obter objetos para verificar interseção
-    const objects = this.getBuildableObjects();
+    // Primeiro verificar se clicou em um objeto da sala
+    const roomObjects = this.getRoomObjects();
+    const roomIntersects = this.raycaster.intersectObjects(roomObjects, true);
 
-    // Verificar interseções
-    const intersects = this.raycaster.intersectObjects(objects, false);
+    if (roomIntersects.length > 0 && event.button === 0) {
+      // Clique esquerdo em objeto da sala - selecionar
+      const intersectedMesh = roomIntersects[0].object;
+      const roomObject = this.findRoomObjectByMesh(intersectedMesh);
+      
+      if (roomObject) {
+        this.selectRoomObject(roomObject);
+        return;
+      }
+    }
 
-    if (intersects.length > 0) {
-      const intersect = intersects[0];
+    // Se não clicou em objeto da sala, verificar construção de voxels
+    const buildableObjects = this.getBuildableObjects();
+    const buildIntersects = this.raycaster.intersectObjects(buildableObjects, false);
+
+    if (buildIntersects.length > 0) {
+      const intersect = buildIntersects[0];
       const point = intersect.point;
       const face = intersect.face;
       const object = intersect.object;
 
       if (event.button === 0) { // Clique esquerdo - construir
+        // Desselecionar objeto se estava selecionado
+        if (this.selectedObject) {
+          this.deselectRoomObject();
+        }
         this.placeVoxel(point, face);
       } else if (event.button === 2) { // Clique direito - remover
         this.removeVoxel(object);
+      }
+    } else if (event.button === 0) {
+      // Clique no vazio - desselecionar objeto
+      if (this.selectedObject) {
+        this.deselectRoomObject();
       }
     }
   }
@@ -807,5 +850,151 @@ export class WalkBuildModeSystem {
   updateBuildPreview() {
     // Implementar preview visual para construção (opcional)
     // Por enquanto, apenas placeholder
+  }
+
+  // =====================================================================
+  // SISTEMA DE SELEÇÃO E MOVIMENTAÇÃO DE OBJETOS
+  // =====================================================================
+
+  // Obter objetos da sala para raycasting
+  getRoomObjects() {
+    const objects = [];
+    if (this.roomModeSystem && this.roomModeSystem.roomObjects) {
+      this.roomModeSystem.roomObjects.forEach(obj => {
+        if (obj.meshGroup && obj.meshGroup.visible) {
+          obj.meshGroup.traverse((child) => {
+            if (child.isMesh) {
+              objects.push(child);
+            }
+          });
+        }
+      });
+    }
+    return objects;
+  }
+
+  // Encontrar objeto da sala pelo mesh clicado
+  findRoomObjectByMesh(mesh) {
+    if (!this.roomModeSystem || !this.roomModeSystem.roomObjects) return null;
+    
+    for (const roomObject of this.roomModeSystem.roomObjects) {
+      if (roomObject.meshGroup) {
+        let found = false;
+        roomObject.meshGroup.traverse((child) => {
+          if (child === mesh) {
+            found = true;
+          }
+        });
+        if (found) return roomObject;
+      }
+    }
+    return null;
+  }
+
+  // Selecionar objeto da sala
+  selectRoomObject(roomObject) {
+    // Desselecionar objeto anterior
+    if (this.selectedObject) {
+      this.deselectRoomObject();
+    }
+
+    this.selectedObject = roomObject;
+    this.createObjectOutline(roomObject);
+    
+    console.log(`🎯 Objeto selecionado: ${roomObject.name}`);
+    console.log('💡 Pressione G para ativar modo de arrastar com o mouse');
+  }
+
+  // Desselecionar objeto
+  deselectRoomObject() {
+    if (this.selectedObject) {
+      console.log(`❌ Objeto desselecionado: ${this.selectedObject.name}`);
+      this.selectedObject = null;
+    }
+    
+    if (this.isDraggingObject) {
+      this.isDraggingObject = false;
+      console.log('🛑 Modo de arrastar desativado');
+    }
+
+    this.removeObjectOutline();
+  }
+
+  // Criar outline visual para objeto selecionado
+  createObjectOutline(roomObject) {
+    this.removeObjectOutline();
+
+    if (!roomObject.meshGroup) return;
+
+    // Criar outline usando BoxHelper
+    this.objectOutline = new THREE.BoxHelper(roomObject.meshGroup, 0x00ff00);
+    this.objectOutline.material.linewidth = 3;
+    this.scene.add(this.objectOutline);
+  }
+
+  // Remover outline visual
+  removeObjectOutline() {
+    if (this.objectOutline) {
+      this.scene.remove(this.objectOutline);
+      this.objectOutline = null;
+    }
+  }
+
+  // Alternar modo de arrastar objeto
+  toggleObjectDragging() {
+    if (!this.selectedObject) return;
+
+    this.isDraggingObject = !this.isDraggingObject;
+    
+    if (this.isDraggingObject) {
+      console.log('🖱️ Modo de arrastar ativado - mova o mouse para arrastar o objeto');
+      console.log('💡 Pressione G novamente para desativar');
+      
+      // Salvar posição inicial
+      this.dragStartPosition.copy(this.selectedObject.meshGroup.position);
+    } else {
+      console.log('🛑 Modo de arrastar desativado');
+    }
+  }
+
+  // Mover objeto selecionado com movimento do mouse
+  moveSelectedObject(movementX, movementY) {
+    if (!this.selectedObject || !this.selectedObject.meshGroup) return;
+
+    // Converter movimento do mouse em movimento 3D baseado na direção da câmera
+    const moveSpeed = 0.01; // Velocidade de movimento
+    
+    // Calcular direções baseadas na rotação da câmera
+    const forward = new THREE.Vector3(0, 0, -1);
+    const right = new THREE.Vector3(1, 0, 0);
+    
+    // Aplicar rotação da câmera às direções
+    forward.applyQuaternion(this.walkCamera.quaternion);
+    right.applyQuaternion(this.walkCamera.quaternion);
+    
+    // Projetar no plano horizontal (Y = 0)
+    forward.y = 0;
+    right.y = 0;
+    forward.normalize();
+    right.normalize();
+
+    // Calcular movimento baseado no mouse
+    const moveVector = new THREE.Vector3();
+    moveVector.addScaledVector(right, movementX * moveSpeed);
+    moveVector.addScaledVector(forward, -movementY * moveSpeed);
+
+    // Aplicar movimento ao objeto
+    this.selectedObject.meshGroup.position.add(moveVector);
+
+    // Atualizar outline se existir
+    if (this.objectOutline) {
+      this.objectOutline.update();
+    }
+
+    // Log de debug (apenas ocasionalmente para não spam)
+    if (Math.random() < 0.01) {
+      const pos = this.selectedObject.meshGroup.position;
+      console.log(`📍 Movendo ${this.selectedObject.name} para (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)})`);
+    }
   }
 }

@@ -56,7 +56,7 @@ export class RoomModeSystem {
 
     // Inicializar sistema de caminhada e construção
     this.initWalkBuildSystem();
-    this.roomObjectsList = document.getElementById('roomObjectsList');
+    
     this.roomSaveBtn = document.getElementById('roomSaveBtn');
     this.roomClearBtn = document.getElementById('roomClearBtn');
 
@@ -151,26 +151,37 @@ export class RoomModeSystem {
     });
 
     // Event listeners para o upload de objetos da sala
-    const newRoomObjectInput = document.getElementById('newRoomObjectInput');
-    const newRoomObjectBtn = document.getElementById('newRoomObjectBtn');
+    const roomObjectFileInput = document.getElementById('roomObjectFileInput');
 
-    if (newRoomObjectBtn && newRoomObjectInput) {
-      newRoomObjectBtn.addEventListener('click', () => {
-        console.log('roomMode.js: newRoomObjectBtn clicked. Attempting to open file dialog.'); // NEW LOG
-        if (window.fileUploadSystem) {
-          window.fileUploadSystem.openDialog('.html,.json', 'roomObject');
-        } else {
-          console.error('fileUploadSystem not available globally.');
+    if (roomObjectFileInput) {
+      roomObjectFileInput.addEventListener('change', (event) => {
+        const files = event.target.files;
+        if (files && files.length > 0) {
+          console.log('📁 Arquivos selecionados via room input:', files.length);
+
+          // Processar múltiplos arquivos se selecionados
+          Array.from(files).forEach(file => {
+            if (window.fileUploadSystem) {
+              // Determinar o tipo de callback baseado no modo atual
+              const isRoomMode = this.isRoomMode;
+              const callbackType = isRoomMode ? 'roomObject' : 'voxel';
+
+              console.log(`📁 Processando arquivo no modo ${isRoomMode ? 'sala' : 'editor'}: ${callbackType}`);
+
+              // Simular o comportamento do handleFileChange
+              window.fileUploadSystem.currentCallbackType = callbackType;
+              const fakeEvent = { target: { files: [file] } };
+              window.fileUploadSystem.handleFileChange(fakeEvent);
+            } else {
+              console.error('fileUploadSystem not available globally.');
+            }
+          });
+
+          // Limpar o input para permitir seleção do mesmo arquivo novamente
+          event.target.value = '';
         }
       });
-
-      // The change event listener is handled by fileUploadSystem.handleFileChange
-      // We just need to make sure the input is cleared after selection
-      newRoomObjectInput.addEventListener('change', (event) => {
-        event.target.value = ''; // Clear the input to allow re-uploading the same file
-      });
     }
-
 
     if (this.enterWalkModeBtn) {
       this.enterWalkModeBtn.addEventListener('click', () => {
@@ -191,10 +202,11 @@ export class RoomModeSystem {
   }
 
   // Configurar variáveis do editor
-  setEditorVars(distance, angleX, angleY) {
+  setEditorVars(distance, angleX, angleY, voxels = null) {
     this.distance = distance;
     this.angleX = angleX;
     this.angleY = angleY;
+    this.voxels = voxels;
   }
 
   // Classe para objetos da sala
@@ -321,8 +333,9 @@ export class RoomModeSystem {
     if (this.leftPanel.classList.contains('show')) {
       this.leftPanel.classList.remove('show');
     }
-    if (this.iconToolbar) {
-      this.iconToolbar.style.left = '10px'; // Posição original
+    // Atualizar posição do toolbar usando função centralizada
+    if (window.updateToolbarPosition) {
+      window.updateToolbarPosition();
     }
     if (this.topBar) {
       this.topBar.style.display = 'flex';
@@ -332,11 +345,28 @@ export class RoomModeSystem {
     this.roomPanel.style.display = 'flex';
     document.body.classList.add('room-mode');
 
-    // Criar geometria da sala
-    this.createRoomGeometry();
+    // Criar geometria da sala usando o novo sistema de configuração
+    if (window.roomConfigSystem) {
+      console.log('🏗️ Usando sistema de configuração personalizada da sala');
+      window.roomConfigSystem.createRoom();
+      
+      // Inicializar sistema de portas e janelas se disponível
+      if (window.doorWindowSystem) {
+        console.log('🚪 Sistema de portas e janelas disponível no room mode');
+      }
+    } else {
+      console.log('🏗️ Usando geometria padrão da sala');
+      this.createRoomGeometry();
+    }
 
     // Configurar iluminação inicial (Manhã)
     this.updateLighting('Manhã');
+
+    // Restaurar objetos da sala na cena (caso tenham sido removidos)
+    this.restoreRoomObjectsToScene();
+
+    // Esconder voxels do editor no room mode
+    this.hideEditorVoxels();
 
     // Configurar câmera para visão de sala
     this.camera.position.set(20, 15, 20);
@@ -350,10 +380,20 @@ export class RoomModeSystem {
   exitRoomMode() {
     console.log('🎭 Saindo do modo Sala Ambiente');
 
+    // Restaurar configurações do renderer para o modo editor
+    if (this.renderer) {
+      this.renderer.shadowMap.enabled = false;
+      this.renderer.shadowMap.autoUpdate = false;
+      this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+      this.renderer.toneMapping = THREE.NoToneMapping;
+      this.renderer.toneMappingExposure = 1.0;
+    }
+
     // Restaurar painel de cores e esconder a barra superior (se walk mode não estiver ativo)
     this.leftPanel.classList.add('show');
-    if (this.iconToolbar) {
-      this.iconToolbar.style.left = '345px';
+    // Atualizar posição do toolbar usando função centralizada
+    if (window.updateToolbarPosition) {
+      window.updateToolbarPosition();
     }
     // Manter a barra visível por padrão
     if (this.topBar) {
@@ -364,11 +404,26 @@ export class RoomModeSystem {
     this.roomPanel.style.display = 'none';
     document.body.classList.remove('room-mode');
 
-    // Remover geometria da sala
-    this.removeRoomGeometry();
+    // Remover geometria da sala usando o novo sistema ou método tradicional
+    if (window.roomConfigSystem) {
+      console.log('🧹 Limpando sala personalizada');
+      window.roomConfigSystem.clearRoom();
+      
+      // Limpar portas e janelas se disponível
+      if (window.doorWindowSystem) {
+        console.log('🚪 Limpando portas e janelas');
+        window.doorWindowSystem.clear();
+      }
+    } else {
+      console.log('🧹 Removendo geometria padrão da sala');
+      this.removeRoomGeometry();
+    }
+    
+    // Esconder objetos da sala no modo editor (não remover da cena)
+    this.hideRoomObjectsFromScene();
 
-    // Limpar objetos da sala
-    this.clearRoomObjects();
+    // Mostrar voxels do editor no modo editor
+    this.showEditorVoxels();
 
     // Resetar câmera
     this.camera.position.set(
@@ -594,7 +649,7 @@ export class RoomModeSystem {
   removeRoomLighting() {
     console.log('🕯️ Removendo iluminação do modo sala');
 
-    // Lista de nomes das luzes do modo sala
+    // Lista de nomes das luzes e efeitos do modo sala
     const roomLightNames = [
       'roomAmbientLight',
       'roomMainLight',
@@ -602,7 +657,8 @@ export class RoomModeSystem {
       'roomBackLight',
       'roomTopLight',
       'roomPointLight1',
-      'roomPointLight2'
+      'roomPointLight2',
+      'roomVolumetricLight' // Adicionar o efeito volumétrico
     ];
 
     // Remover luzes específicas do modo sala
@@ -714,132 +770,133 @@ export class RoomModeSystem {
       meshGroup
     );
 
-    this.roomObjects.push(roomObject);
+  this.roomObjects.push(roomObject);
 
-    // Garantir que o room panel seja mostrado quando objetos são carregados
-    if (this.roomPanel && this.roomPanel.style.display !== 'flex') {
-      this.roomPanel.style.display = 'flex';
-      console.log('🎭 Room panel mostrado automaticamente ao carregar objeto');
-    }
+  // Update the UI list
+  this.updateRoomObjectsList();
 
-    // Ativar automaticamente o modo sala quando o primeiro objeto é carregado
-    if (!this.isRoomMode && this.roomObjects.length === 1) {
-      console.log('🎭 Ativando modo sala automaticamente ao carregar primeiro objeto');
-      this.enterRoomMode();
-      
-      // Atualizar estado do botão do modo caminhada após ativar o modo sala
-      this.updateWalkModeButtonState();
-    }
+  // Mostrar room panel apenas se já estivermos no room mode
+  if (this.isRoomMode && this.roomPanel && this.roomPanel.style.display !== 'flex') {
+    this.roomPanel.style.display = 'flex';
+    console.log('🎭 Room panel mostrado (já em room mode)');
+  }
 
-    this.updateRoomObjectsList();
+  // Não ativar automaticamente o room mode - deixar o usuário decidir
+  // O usuário deve ativar manualmente o room mode quando desejar
 
-    console.log(`✅ Objeto "${roomObject.name}" adicionado à sala (${voxelData.length} voxels) com materiais otimizados`);
+  console.log(`✅ Objeto "${roomObject.name}" adicionado à sala (${voxelData.length} voxels) com materiais otimizados`);
   }
 
   updateRoomObjectsList() {
-    this.roomObjectsList.innerHTML = '';
+    const listElement = document.getElementById('roomUploadHistoryList');
+    if (!listElement) return;
 
     if (this.roomObjects.length === 0) {
-      return; // A mensagem "Nenhum objeto carregado" será mostrada via CSS ::before
-    }
-
-    this.roomObjects.forEach(obj => {
-      const objDiv = document.createElement('div');
-      objDiv.className = 'room-object-card';
-      objDiv.dataset.objectId = obj.id; // Adicionar dataset para identificação
-      objDiv.innerHTML = `
-        <div class="card-header">
-          <h5>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-               <path d="M10 2a.75.75 0 01.75.75v.51a4.52 4.52 0 012.14.996l.45-.45a.75.75 0 111.06 1.06l-.45.45c.36.47.65.99.86 1.55h.51a.75.75 0 110 1.5h-.51a4.52 4.52 0 01-.86 1.55l.45.45a.75.75 0 11-1.06 1.06l-.45-.45a4.52 4.52 0 01-2.14.996v.51a.75.75 0 11-1.5 0v-.51a4.52 4.52 0 01-2.14-.996l-.45.45a.75.75 0 11-1.06-1.06l.45-.45a4.52 4.52 0 01-.86-1.55h-.51a.75.75 0 010-1.5h.51c.21-.56.5-1.08.86-1.55l-.45-.45a.75.75 0 011.06-1.06l.45.45c.6-.43 1.32-.77 2.14-.996V2.75A.75.75 0 0110 2zM8.5 10a1.5 1.5 0 103 0 1.5 1.5 0 00-3 0z" />
-            </svg>
-            <span>${obj.name}</span>
-          </h5>
-          <svg class="card-toggle-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832l-3.71 3.938a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd" />
+      listElement.innerHTML = `
+        <div class="upload-history-empty">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14,2 14,8 20,8"/>
           </svg>
-        </div>
-        <div class="card-body">
-          <div class="object-info">
-            <div class="info-item">
-              <span class="info-label">Posição:</span>
-              <span class="info-value">${obj.position.x.toFixed(1)}, ${obj.position.y.toFixed(1)}, ${obj.position.z.toFixed(1)}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Rotação:</span>
-              <span class="info-value">${THREE.MathUtils.radToDeg(obj.rotation.x).toFixed(0)}°, ${THREE.MathUtils.radToDeg(obj.rotation.y).toFixed(0)}°, ${THREE.MathUtils.radToDeg(obj.rotation.z).toFixed(0)}°</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Escala:</span>
-              <span class="info-value">${obj.scale.x.toFixed(1)}x</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Voxels:</span>
-              <span class="info-value">${obj.voxelData ? obj.voxelData.length : 0}</span>
-            </div>
-          </div>
-        </div>
-        <div class="card-footer">
-          <button class="select-object-btn" data-obj-id="${obj.id}">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clip-rule="evenodd" />
-            </svg>
-            <span>Controlar</span>
-          </button>
-          <button class="remove-object-btn-new" data-obj-id="${obj.id}">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.58.22-2.365.468a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.576l.84-10.518.149.022a.75.75 0 10.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd" />
-            </svg>
-            <span>Remover</span>
-          </button>
+          <p>Nenhum objeto na sala</p>
+          <small>Carregue um objeto para começar</small>
         </div>
       `;
-      this.roomObjectsList.appendChild(objDiv);
-    });
+      return;
+    }
 
-    // Toggle para expandir/colapsar cards
-    this.roomObjectsList.querySelectorAll('.card-header').forEach(header => {
-      header.addEventListener('click', (e) => {
-        if (!e.target.closest('.remove-object-btn-new') && !e.target.closest('.select-object-btn')) {
-          const card = header.parentElement;
-          const body = card.querySelector('.card-body');
-          const toggleIcon = header.querySelector('.card-toggle-icon');
+    listElement.innerHTML = this.roomObjects.map(obj => `
+      <div class="object-card" data-id="${obj.id}">
+        <div class="object-card-info">
+          <div class="object-card-header">
+            <div class="object-card-name">${obj.name}</div>
+            <span class="mode-badge room-mode">ROOM</span>
+          </div>
+          <div class="object-card-meta">
+            ${obj.voxelData.length} voxels
+          </div>
+        </div>
+        <div class="object-card-actions">
+          <button class="object-card-btn transform-btn" data-obj-id="${obj.id}" title="Transformar">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+          <button class="object-card-btn reload" data-id="${obj.id}" title="Recarregar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+            </svg>
+          </button>
+          <button class="object-card-btn delete" data-id="${obj.id}" title="Remover">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
 
-          body.classList.toggle('collapsed');
-          toggleIcon.style.transform = body.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(180deg)';
-        }
-      });
-    });
-
-    // Event listener para selecionar objeto para controle
-    this.roomObjectsList.querySelectorAll('.select-object-btn').forEach(button => {
-      button.addEventListener('click', (e) => {
+    // Add event listeners with specific context to avoid conflicts with editor.js
+    listElement.querySelectorAll('.object-card .transform-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const objId = parseInt(e.target.closest('.select-object-btn').dataset.objId);
+        const objId = parseInt(e.currentTarget.dataset.objId);
         const obj = this.roomObjects.find(o => o.id === objId);
         if (obj) {
-          // Desmarcar todos os objetos
-          this.roomObjects.forEach(o => o.selected = false);
-          // Marcar o objeto selecionado
-          obj.selected = true;
-          // Adicionar controles de transformação
           this.addTransformControls(obj);
         }
       });
     });
 
-    this.roomObjectsList.querySelectorAll('.remove-object-btn-new').forEach(button => {
-      button.addEventListener('click', (e) => {
+    listElement.querySelectorAll('.object-card .delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const objId = parseInt(e.target.closest('.remove-object-btn-new').dataset.objId);
-
-        // Confirmação visual melhorada
+        const objId = parseInt(e.currentTarget.dataset.id);
         const obj = this.roomObjects.find(o => o.id === objId);
-        if (confirm(`Tem certeza que deseja remover "${obj ? obj.name : 'este objeto'}"?`)) {
+        if (obj && confirm(`Tem certeza que deseja remover "${obj.name}"?`)) {
           this.removeRoomObject(objId);
         }
       });
     });
+
+    // Add event listeners for reload buttons with specific context
+    listElement.querySelectorAll('.object-card .reload').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const objId = parseInt(e.currentTarget.dataset.id);
+        const obj = this.roomObjects.find(o => o.id === objId);
+        if (obj) {
+          console.log(`🔄 Recarregar objeto: ${obj.name}`);
+          // TODO: Implementar funcionalidade de reload
+        }
+      });
+    });
+  }
+
+  // Select a room object
+  selectRoomObject(objId) {
+    // Deselect all objects
+    this.roomObjects.forEach(obj => {
+      obj.selected = false;
+      obj.hideGizmo();
+    });
+
+    // Select the target object
+    const targetObj = this.roomObjects.find(obj => obj.id === objId);
+    if (targetObj) {
+      targetObj.selected = true;
+      targetObj.showGizmo();
+      // Note: addTransformControls is now only called via the Transform button
+    }
+
+    // Update the UI
+    this.updateRoomObjectsList();
   }
 
   removeRoomObject(objId) {
@@ -853,12 +910,19 @@ export class RoomModeSystem {
       }
 
       this.roomObjects.splice(index, 1);
+
+      // Update the UI list
       this.updateRoomObjectsList();
 
-      // Limpar controles de transformação se o objeto removido era o que estava sendo controlado
+      // Clear transform controls when object is removed
       const transformControls = document.getElementById('transformControls');
-      if (transformControls && obj.selected) {
+      if (transformControls) {
         transformControls.innerHTML = '';
+      }
+      
+      // If the removed object was selected and there are still objects, just select the first one (no auto-transform)
+      if (obj.selected && this.roomObjects.length > 0) {
+        this.roomObjects[0].selected = true;
       }
     }
   }
@@ -869,17 +933,46 @@ export class RoomModeSystem {
     });
     this.roomObjects = [];
 
+    // Update the UI list
+    this.updateRoomObjectsList();
+
     if (this.transformGizmo) {
       this.transformGizmo.visible = false;
     }
-
-    this.updateRoomObjectsList();
 
     // Limpar controles de transformação
     const transformControls = document.getElementById('transformControls');
     if (transformControls) {
       transformControls.innerHTML = '';
     }
+  }
+
+  // Função para esconder objetos da sala no modo editor
+  hideRoomObjectsFromScene() {
+    console.log(`🙈 Escondendo ${this.roomObjects.length} objetos da sala no modo editor`);
+    this.roomObjects.forEach(obj => {
+      if (obj.meshGroup && obj.meshGroup.parent === this.scene) {
+        obj.meshGroup.visible = false;
+        console.log(`  - Objeto "${obj.name}" escondido`);
+      }
+    });
+  }
+
+  // Função para restaurar objetos da sala na cena
+  restoreRoomObjectsToScene() {
+    console.log(`👁️ Restaurando ${this.roomObjects.length} objetos da sala no room mode`);
+    this.roomObjects.forEach(obj => {
+      if (obj.meshGroup) {
+        // Garantir que o objeto está na cena
+        if (obj.meshGroup.parent !== this.scene) {
+          this.scene.add(obj.meshGroup);
+          console.log(`  + Objeto "${obj.name}" adicionado à cena`);
+        }
+        // Tornar visível
+        obj.meshGroup.visible = true;
+        console.log(`  - Objeto "${obj.name}" restaurado e visível`);
+      }
+    });
   }
 
   saveRoom() {
@@ -1177,4 +1270,33 @@ export class RoomModeSystem {
       }
     }
   }
+
+  hideEditorVoxels() {
+    if (!this.voxels || this.voxels.length === 0) {
+      console.log('📝 Nenhum voxel do editor para esconder');
+      return;
+    }
+
+    console.log(`🙈 Escondendo ${this.voxels.length} voxels do editor no room mode`);
+    this.voxels.forEach(voxel => {
+      if (voxel && voxel.visible !== undefined) {
+        voxel.visible = false;
+      }
+    });
+  }
+
+  showEditorVoxels() {
+    if (!this.voxels || this.voxels.length === 0) {
+      console.log('📝 Nenhum voxel do editor para mostrar');
+      return;
+    }
+
+    console.log(`👁️ Mostrando ${this.voxels.length} voxels do editor no modo editor`);
+    this.voxels.forEach(voxel => {
+      if (voxel && voxel.visible !== undefined) {
+        voxel.visible = true;
+      }
+    });
+  }
+
 }
