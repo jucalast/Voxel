@@ -8,18 +8,18 @@ export class RoomConfigSystem {
     this.scene = scene;
     this.textureSystem = textureSystem;
     
-    // Configurações padrão da sala
+    // Configurações padrão - dimensões automáticas
     this.config = {
       dimensions: {
-        width: 20,    // Largura
-        height: 10,   // Altura
-        depth: 20     // Profundidade
+        width: 10,  // 10m de largura
+        height: 5,  // 5m de altura
+        depth: 10   // 10m de profundidade
       },
       textures: {
-        floor: 'wood_oak',      // Chão
-        walls: 'wallpaper_stripes', // Paredes
-        ceiling: 'marble_white'  // Teto
-      },
+        floor: 'concrete',
+        walls: 'brick',
+        ceiling: 'plaster'
+      }
     };
     
     // Elementos da sala
@@ -29,7 +29,7 @@ export class RoomConfigSystem {
       ceiling: null
     };
     
-    console.log('🏠 Sistema de Configuração de Sala inicializado');
+    // Sistema de Configuração de Sala inicializado
   }
 
   /**
@@ -37,7 +37,7 @@ export class RoomConfigSystem {
    */
   setDimensions(width, height, depth) {
     this.config.dimensions = { width, height, depth };
-    console.log(`📏 Dimensões da sala definidas: ${width}x${height}x${depth}`);
+    // Dimensões definidas
     
     // Recriar sala se já existir
     if (this.roomElements.floor || this.roomElements.walls.length > 0) {
@@ -71,7 +71,7 @@ export class RoomConfigSystem {
    * Criar sala completa
    */
   createRoom() {
-    console.log('🏗️ Criando sala personalizada...');
+    // Criando sala personalizada
     
     // Limpar sala existente
     this.clearRoom();
@@ -81,7 +81,39 @@ export class RoomConfigSystem {
     this.createWalls();
     this.createCeiling();
     
-    console.log('✅ Sala personalizada criada com sucesso');
+    // Criar porta automática após pequeno delay
+    setTimeout(() => {
+      this.createAutomaticDoor();
+    }, 500);
+    
+    // Sala personalizada criada com sucesso
+  }
+
+  /**
+   * Criar porta automática na sala
+   */
+  createAutomaticDoor() {
+    // Verificar se o sistema de portas está disponível
+    if (window.doorControls && typeof window.doorControls.create === 'function') {
+      // Criando porta automática
+      
+      // Criar porta na parede frontal, centralizada, no chão
+      const doorResult = window.doorControls.create('porta-automatica', 'front', { x: 0, y: 0 });
+      
+      if (doorResult) {
+        // Porta criada com sucesso
+        
+        // Abrir a porta automaticamente após criação
+        setTimeout(() => {
+          window.doorControls.toggle('porta-automatica');
+          // Porta aberta
+        }, 1000);
+      } else {
+        console.warn('⚠️ Falha ao criar porta automática');
+      }
+    } else {
+      console.warn('⚠️ Sistema de portas não disponível para criação automática');
+    }
   }
 
   /**
@@ -117,7 +149,7 @@ export class RoomConfigSystem {
     this.roomElements.floor.userData.elementType = 'floor';
     
     this.scene.add(this.roomElements.floor);
-    console.log('🟫 Chão criado');
+    // Chão criado
   }
 
   /**
@@ -146,14 +178,14 @@ export class RoomConfigSystem {
       {
         height: height,
         position: [-width / 2 - wallThickness / 2, height / 2, 0],
-        rotation: [0, 0, 0],
+        rotation: [0, Math.PI / 2, 0],  // Rotacionar 90° para orientar corretamente
         name: 'left'
       },
       // Parede direita
       {
         height: height,
         position: [width / 2 + wallThickness / 2, height / 2, 0],
-        rotation: [0, 0, 0],
+        rotation: [0, Math.PI / 2, 0],  // Rotacionar 90° para orientar corretamente
         name: 'right'
       }
     ];
@@ -163,11 +195,13 @@ export class RoomConfigSystem {
       let wallWidth, wallDepth;
       
       if (config.name === 'front' || config.name === 'back') {
+        // Paredes front/back: largura da sala x espessura da parede
         wallWidth = width;
         wallDepth = wallThickness;
       } else { // left ou right
-        wallWidth = wallThickness;
-        wallDepth = depth;
+        // CORREÇÃO: Paredes laterais: profundidade da sala x espessura da parede
+        wallWidth = depth;  // A "largura" da parede lateral é a profundidade da sala
+        wallDepth = wallThickness;  // A "profundidade" da parede é sempre a espessura
       }
       
       const geometry = new THREE.BoxGeometry(wallWidth, config.height, wallDepth);
@@ -213,7 +247,7 @@ export class RoomConfigSystem {
       this.scene.add(wall);
     });
     
-    console.log('🧱 Paredes criadas');
+    // Paredes criadas
   }
 
   /**
@@ -260,7 +294,7 @@ export class RoomConfigSystem {
     this.roomElements.ceiling.userData.blocksLight = true; // Marca que o teto bloqueia luz
     
     this.scene.add(this.roomElements.ceiling);
-    console.log('🏠 Teto criado');
+    // Teto criado
   }
 
 
@@ -281,27 +315,49 @@ export class RoomConfigSystem {
             newMaterial.map.wrapS = THREE.RepeatWrapping;
             newMaterial.map.wrapT = THREE.RepeatWrapping;
           }
+          
+          // Preservar configurações de iluminação existentes
+          if (!newMaterial.userData) newMaterial.userData = {};
+          newMaterial.userData.darkModeProcessed = true;
+          newMaterial.userData.lightingPreserved = true;
+          
+          // Garantir que o chão seja visível
+          this.roomElements.floor.visible = true;
           this.roomElements.floor.material = newMaterial;
+          this.roomElements.floor.material.needsUpdate = true;
         }
         break;
         
       case 'walls':
-        this.roomElements.walls.forEach(wall => {
+        this.roomElements.walls.forEach((wall, index) => {
           const newMaterial = this.textureSystem.createTexturedMaterial(
             this.config.textures.walls,
             { side: THREE.DoubleSide, roughness: 0.6, metalness: 0.05 }
           );
+          
           if (newMaterial.map) {
             newMaterial.map.repeat.set(3, 3);
             newMaterial.map.wrapS = THREE.RepeatWrapping;
             newMaterial.map.wrapT = THREE.RepeatWrapping;
           }
+          
+          // Preservar configurações de iluminação existentes
+          if (!newMaterial.userData) newMaterial.userData = {};
+          newMaterial.userData.darkModeProcessed = true;
+          newMaterial.userData.lightingPreserved = true;
+          
+          // Garantir que a parede seja visível
+          wall.visible = true;
           wall.material = newMaterial;
+          wall.material.needsUpdate = true;
         });
+        // Configurações de iluminação preservadas para as paredes
         break;
         
       case 'ceiling':
         if (this.roomElements.ceiling) {
+          console.log('🏠 Atualizando teto');
+          
           const newMaterial = this.textureSystem.createTexturedMaterial(
             this.config.textures.ceiling,
             { side: THREE.DoubleSide, roughness: 0.9, metalness: 0.0 }
@@ -312,7 +368,23 @@ export class RoomConfigSystem {
             newMaterial.map.wrapS = THREE.RepeatWrapping;
             newMaterial.map.wrapT = THREE.RepeatWrapping;
           }
+          
+          // Preservar configurações de iluminação existentes
+          if (!newMaterial.userData) newMaterial.userData = {};
+          newMaterial.userData.darkModeProcessed = true;
+          newMaterial.userData.lightingPreserved = true;
+          
+          // Garantir que o teto seja visível
+          this.roomElements.ceiling.visible = true;
           this.roomElements.ceiling.material = newMaterial;
+          this.roomElements.ceiling.material.needsUpdate = true;
+          
+          console.log('   ✅ Teto atualizado:', {
+            visible: this.roomElements.ceiling.visible,
+            material: this.roomElements.ceiling.material.type,
+            hasTexture: !!this.roomElements.ceiling.material.map
+          });
+          console.log('💡 Configurações de iluminação preservadas para o teto');
         }
         break;
     }
@@ -352,7 +424,7 @@ export class RoomConfigSystem {
     }
     
     
-    console.log('🧹 Sala limpa');
+    // Sala limpa
   }
 
   /**
@@ -369,6 +441,28 @@ export class RoomConfigSystem {
     this.config = { ...this.config, ...newConfig };
     this.rebuildRoom();
     console.log('⚙️ Nova configuração aplicada');
+  }
+
+  /**
+   * Aplicar apenas texturas sem alterar outras configurações
+   * Preserve buracos de portas, dimensões, e outras configurações
+   */
+  applyTexturesOnly(texturesConfig) {
+    console.log('🎨 Aplicando apenas texturas...', texturesConfig);
+    
+    // Atualizar apenas as texturas na configuração
+    Object.keys(texturesConfig).forEach(element => {
+      if (['floor', 'walls', 'ceiling'].includes(element)) {
+        this.config.textures[element] = texturesConfig[element];
+        console.log(`🎨 Textura ${element}: ${texturesConfig[element]}`);
+        
+        // Atualizar apenas esse elemento específico
+        this.updateElementTexture(element);
+      }
+    });
+    
+    console.log('✨ Texturas aplicadas sem alterar configurações da sala');
+    return true;
   }
 
   /**

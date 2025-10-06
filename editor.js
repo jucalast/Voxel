@@ -13,7 +13,7 @@ function waitForDependencies() {
     setTimeout(waitForDependencies, 100);
     return;
   }
-  console.log('Dependências carregadas, inicializando editor...');
+  // Dependências carregadas, inicializando editor...
   initEditor();
 }
 
@@ -56,7 +56,7 @@ function initEditor() {
   // Elemento do botão de modo câmera (REMOVIDO)
   // const cameraModeBtn = document.getElementById('cameraModeBtn');
 
-  console.log('Elementos DOM carregados');  // =====================================================================
+  // Elementos DOM carregados  // =====================================================================
   // INICIALIZAÇÃO DOS MÓDULOS
   // =====================================================================
 
@@ -281,7 +281,7 @@ function initEditor() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.2;
 
-  console.log('🎨 Renderer otimizado com ACES tone mapping e exposição 1.2x');
+  // Renderer otimizado
 
   resizeRenderer();
   window.addEventListener('resize', resizeRenderer);
@@ -351,7 +351,7 @@ function initEditor() {
   pointLight2.position.set(-8, 8, -8);
   scene.add(pointLight2);
 
-  console.log('💡 Sistema de iluminação otimizado configurado com 7 luzes');
+  // Sistema de iluminação configurado
 
   // =====================================================================
   // CONTROLES DE CÂMERA E GRADE
@@ -409,8 +409,7 @@ function initEditor() {
   gridHelper.material.opacity = 0.4;
   gridHelper.material.transparent = true;
   scene.add(gridHelper);
-  console.log('Grid adicionado à cena:', gridHelper);
-  console.log('Objetos na cena após adicionar grid:', scene.children.length);
+  // Grid configurado na cena
 
   // Plano invisível para detecção de cliques
   const planeGeometry = new THREE.PlaneGeometry(50, 50);
@@ -735,8 +734,7 @@ function initEditor() {
 
   // Funcionalidade de geração automática removida
 
-  console.log('✅ Editor básico inicializado');
-  console.log('🎮 Modo manual de edição de voxels ativo');
+  // Editor básico inicializado
 
   // =====================================================================
   // FUNÇÃO HELPER PARA INTERSEÇÕES
@@ -1218,7 +1216,6 @@ function initEditor() {
     } else {
       // Cursor normal quando nenhum modificador está ativo
       canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"34\" height=\"34\" viewBox=\"0 0 34 34\" fill=\"none\"><defs><filter id=\"shadow\" x=\"-50%%\" y=\"-50%%\" width=\"200%%\" height=\"200%%\"><feDropShadow dx=\"2\" dy=\"2\" stdDeviation=\"2\" flood-color=\"rgba(0,0,0,0.8)\"/></filter></defs><path d=\"M6 6 C6 6 6.5 6 7 6.2 L25 16 C25.8 16.4 25.8 16.9 25 17.3 L16 19.5 C15.3 19.7 15 20.1 14.8 20.8 L12.8 28 C12.6 28.7 12 28.7 11.8 28 L6 8.5 C5.7 7.8 5.7 6.3 6 6 Z\" fill=\"black\" stroke=\"white\" stroke-width=\"2.2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" filter=\"url(%23shadow)\"/><path d=\"M8 9 L12 18 L16 20 L23 17.5\" stroke=\"rgba(255,255,255,0.3)\" stroke-width=\"1\" fill=\"none\" stroke-linecap=\"round\"/></svg>') 6 6, auto";
-      console.log('🖱️ Cursor voltou ao normal');
     }
   }
 
@@ -2131,9 +2128,7 @@ function initEditor() {
   window.voxels = voxels;
   window.colorSystem = colorSystem;
 
-  console.log('🔗 Funções do editor expostas globalmente para integração com walk mode');
-
-  // =====================================================================
+    // Funções do editor expostas globalmente  // =====================================================================
   // INICIALIZAÇÃO DO SISTEMA DE MODO SALA AMBIENTE
   // =====================================================================
 
@@ -2149,32 +2144,9 @@ function initEditor() {
   // Inicializar event listeners do sistema de sala
   roomModeSystem.init();
 
-  // Obter referências ao slider de horário do dia e ao display
-  const timeOfDaySlider = document.getElementById('time-of-day-slider');
-  const timeDisplay = document.getElementById('time-display');
+  // Time-of-day slider removido - funcionalidade integrada nos controles do room mode
 
-  // Função para formatar minutos para HH:MM
-  function formatTime(minutes) {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-  }
-
-  // Inicializar o display de tempo com o valor inicial do slider
-  if (timeOfDaySlider && timeDisplay) {
-    timeDisplay.textContent = formatTime(parseInt(timeOfDaySlider.value));
-
-    // Adicionar event listener para o slider de horário do dia
-    timeOfDaySlider.addEventListener('input', (event) => {
-      const timeInMinutes = parseInt(event.target.value);
-      timeDisplay.textContent = formatTime(timeInMinutes);
-      roomModeSystem.updateLighting(timeInMinutes);
-    });
-  }
-
-  console.log('🎭 Sistema de Modo Sala Ambiente carregado com sucesso!');
-
-  // =====================================================================
+    // Sistema de Modo Sala Ambiente carregado  // =====================================================================
   // CONEXÃO DA BARRA FLUTUANTE COM O SISTEMA DE CAMINHADA
   // =====================================================================
 
@@ -2208,7 +2180,7 @@ function initEditor() {
     
     // Log a cada 120 frames (aproximadamente 2 segundos a 60fps)
     if (frameCount % 120 === 0) {
-      console.log('Renderizando frame', frameCount, '- Objetos na cena:', scene.children.length);
+      // Frame renderizado
     }
     frameCount++;
     
@@ -2555,10 +2527,7 @@ function initEditor() {
 
   
 
-  console.log('Editor inicializado com sucesso!');
-  console.log('Cena criada com', scene.children.length, 'objetos');
-  console.log('Renderer ativo:', !!renderer);
-  console.log('Camera posicionada em:', camera.position);
+  // Editor inicializado
 
   // =====================================================================
   // SISTEMA DE INTERAÇÃO CLIQUE/ARRASTO MELHORADO PARA TRACKPAD
@@ -3115,7 +3084,7 @@ function initEditor() {
       }
     });
 
-    console.log('Sistema híbrido configurado com suporte melhorado para trackpad');
+    // Sistema híbrido configurado
   }
 
   setupHybridInteraction();
@@ -3423,7 +3392,7 @@ function initEditor() {
     }
   });
 
-  console.log('📂 Sistema de histórico de uploads inicializado');
+  // Sistema de histórico inicializado
 
   // =====================================================================
   // INICIALIZAÇÃO DO SISTEMA DE TUTORIAL
@@ -3437,7 +3406,7 @@ function initEditor() {
       // Registrar o tutorial de arrastar objetos
       window.tutorialSystem.registerTutorial('drag-objects', dragObjectsTutorial);
       
-      console.log('🎓 Sistema de Tutorial inicializado com sucesso');
+      // Sistema de Tutorial inicializado
       
     } catch (error) {
       console.error('❌ Erro ao inicializar sistema de tutorial:', error);
@@ -3527,7 +3496,7 @@ function initEditor() {
     
     // Adicionar efeito de pulso para indicar tutoriais disponíveis
     tutorialBtn.classList.add('has-tutorials');
-    console.log('✨ Efeito de pulso adicionado ao botão de tutorial');
+    // Efeito de pulso adicionado
   }
 
   // =====================================================================
@@ -3542,7 +3511,7 @@ function initEditor() {
       // Configurar interface de texturas
       setupTextureInterface();
       
-      console.log('🎨 Sistema de Texturas inicializado com sucesso');
+      // Sistema de Texturas inicializado
       
     } catch (error) {
       console.error('❌ Erro ao inicializar sistema de texturas:', error);
@@ -3612,7 +3581,7 @@ function initEditor() {
       });
     });
 
-    console.log(`🎨 Interface de texturas configurada com ${availableTextures.length} texturas`);
+    // Interface de texturas configurada
   }
 
   // =====================================================================
@@ -3670,7 +3639,7 @@ function initEditor() {
       // Configurar interface de configuração da sala
       setupRoomConfigInterface();
       
-      console.log('🏠 Sistema de Configuração da Sala inicializado com sucesso');
+      // Sistema de Configuração da Sala inicializado
       
     } catch (error) {
       console.error('❌ Erro ao inicializar sistema de configuração da sala:', error);
@@ -3698,17 +3667,42 @@ function initEditor() {
       return;
     }
 
+    // Variáveis para rastrear se dimensões foram alteradas pelo usuário
+    let dimensionsModified = false;
+    let initialDimensions = null;
+    
+    // Capturar dimensões iniciais
+    const captureInitialDimensions = () => {
+      if (!initialDimensions) {
+        initialDimensions = {
+          width: parseInt(roomWidthSlider.value),
+          height: parseInt(roomHeightSlider.value),
+          depth: parseInt(roomDepthSlider.value)
+        };
+        console.log('📎 Dimensões iniciais capturadas:', initialDimensions);
+      }
+    };
+    
     // Event listeners para sliders de dimensão
     roomWidthSlider.addEventListener('input', (e) => {
       roomWidthValue.textContent = `${e.target.value}m`;
+      captureInitialDimensions();
+      dimensionsModified = true;
+      console.log('📏 Largura alterada pelo usuário');
     });
 
     roomHeightSlider.addEventListener('input', (e) => {
       roomHeightValue.textContent = `${e.target.value}m`;
+      captureInitialDimensions();
+      dimensionsModified = true;
+      console.log('📏 Altura alterada pelo usuário');
     });
 
     roomDepthSlider.addEventListener('input', (e) => {
       roomDepthValue.textContent = `${e.target.value}m`;
+      captureInitialDimensions();
+      dimensionsModified = true;
+      console.log('📏 Profundidade alterada pelo usuário');
     });
 
     // Event listeners para seleção de texturas
@@ -3724,25 +3718,18 @@ function initEditor() {
       console.log(`🎨 Textura do teto selecionada: ${e.target.value}`);
     });
 
-    // Botão aplicar configuração
+    // Botão aplicar texturas (apenas texturas, sem alterar dimensões)
     applyConfigBtn.addEventListener('click', () => {
-      const config = {
-        dimensions: {
-          width: parseInt(roomWidthSlider.value),
-          height: parseInt(roomHeightSlider.value),
-          depth: parseInt(roomDepthSlider.value)
-        },
-        textures: {
-          floor: floorTextureSelect.value,
-          walls: wallsTextureSelect.value,
-          ceiling: ceilingTextureSelect.value
-        }
+      const texturesConfig = {
+        floor: floorTextureSelect.value,
+        walls: wallsTextureSelect.value,
+        ceiling: ceilingTextureSelect.value
       };
 
-      console.log('🏗️ Aplicando configuração da sala:', config);
+      console.log('� Aplicando apenas texturas (preservando dimensões e portas):', texturesConfig);
       
-      // Aplicar configuração
-      window.roomConfigSystem.applyConfig(config);
+      // SEMPRE aplicar apenas texturas - nunca redimensionar
+      window.roomConfigSystem.applyTexturesOnly(texturesConfig);
       
       // Feedback visual
       applyConfigBtn.textContent = '✅ Aplicado!';
@@ -3751,7 +3738,7 @@ function initEditor() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="20,6 9,17 4,12"/>
           </svg>
-          Aplicar Configuração
+          Aplicar Texturas
         `;
       }, 2000);
     });
@@ -3769,6 +3756,10 @@ function initEditor() {
       floorTextureSelect.value = 'wood_oak';
       wallsTextureSelect.value = 'wallpaper_stripes';
       ceilingTextureSelect.value = 'marble_white';
+      
+      // Resetar flags de controle
+      dimensionsModified = true; // Forçar reconstrução no reset
+      initialDimensions = null;
 
       console.log('🔄 Configuração da sala resetada');
       
@@ -3785,7 +3776,7 @@ function initEditor() {
       }, 2000);
     });
 
-    console.log('🎛️ Interface de configuração da sala configurada');
+    // Interface de configuração da sala configurada
   }
 
   // Inicializar sistema de texturas
@@ -3809,7 +3800,7 @@ function initEditor() {
       // Configurar interface de portas e janelas
       setupDoorWindowInterface();
       
-      console.log('🚪 Sistema de Portas e Janelas inicializado com sucesso');
+      // Sistema de Portas e Janelas inicializado
       
     } catch (error) {
       console.error('❌ Erro ao inicializar sistema de portas e janelas:', error);
@@ -3887,41 +3878,9 @@ function initEditor() {
       }
     });
 
-    // Botão criar janela
+    // Botão criar janela (funcionalidade desabilitada)
     createWindowBtn.addEventListener('click', () => {
-      const windowId = windowIdInput.value.trim();
-      const wallName = windowWallSelect.value;
-      const posX = parseFloat(windowPosXSlider.value);
-      const posY = parseFloat(windowPosYSlider.value);
-      const canOpen = windowCanOpenCheckbox.checked;
-
-      if (!windowId) {
-        alert('Por favor, insira um ID para a janela');
-        return;
-      }
-
-      // Verificar se ID já existe
-      if (window.doorWindowSystem.windows.has(windowId)) {
-        alert('Uma janela com este ID já existe');
-        return;
-      }
-
-      // Criar janela
-      const windowElement = window.doorWindowSystem.createWindow(windowId, wallName, 
-        { x: posX, y: posY }, 
-        { canOpen: canOpen }
-      );
-      
-      if (windowElement) {
-        // Atualizar lista de janelas
-        updateWindowsList();
-        
-        // Incrementar ID para próxima janela
-        const nextId = windowId.replace(/\d+$/, (match) => parseInt(match) + 1);
-        windowIdInput.value = nextId;
-        
-        console.log(`🪟 Janela '${windowId}' criada com sucesso`);
-      }
+      alert('Funcionalidade de janelas foi removida. Apenas portas estão disponíveis.');
     });
 
     // Função para atualizar lista de portas
@@ -3955,31 +3914,8 @@ function initEditor() {
 
     // Função para atualizar lista de janelas
     function updateWindowsList() {
-      windowsList.innerHTML = '';
-      
-      const windows = window.doorWindowSystem.getWindows();
-      windows.forEach(windowData => {
-        const windowItem = document.createElement('div');
-        windowItem.className = 'door-window-item';
-        windowItem.innerHTML = `
-          <div class="door-window-item-info">
-            <div class="door-window-item-name">🪟 ${windowData.id}</div>
-            <div class="door-window-item-details">${windowData.wallName} • x: ${windowData.position.x.toFixed(1)}m, y: ${windowData.position.y.toFixed(1)}m</div>
-          </div>
-          <div class="door-window-item-actions">
-            <button class="door-window-item-btn toggle" onclick="toggleWindow('${windowData.id}')">
-              ${windowData.isOpen ? '🔓' : '🔒'}
-            </button>
-            <button class="door-window-item-btn remove" onclick="removeWindow('${windowData.id}')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3,6 5,6 21,6"/>
-                <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
-              </svg>
-            </button>
-          </div>
-        `;
-        windowsList.appendChild(windowItem);
-      });
+      // Funcionalidade de janelas foi removida - limpar lista
+      windowsList.innerHTML = '<div class="door-window-empty">Funcionalidade de janelas removida</div>';
     }
 
     // Expor funções globalmente para os botões
@@ -3989,8 +3925,7 @@ function initEditor() {
     };
 
     window.toggleWindow = (windowId) => {
-      window.doorWindowSystem.toggleWindow(windowId);
-      updateWindowsList();
+      alert('Funcionalidade de janelas foi removida.');
     };
 
     window.removeDoor = (doorId) => {
@@ -4001,13 +3936,10 @@ function initEditor() {
     };
 
     window.removeWindow = (windowId) => {
-      if (confirm(`Tem certeza que deseja remover a janela '${windowId}'?`)) {
-        window.doorWindowSystem.removeWindow(windowId);
-        updateWindowsList();
-      }
+      alert('Funcionalidade de janelas foi removida.');
     };
 
-    console.log('🎛️ Interface de portas e janelas configurada');
+    // Interface de portas e janelas configurada
   }
 
   // Inicializar sistema de configuração da sala
@@ -4019,7 +3951,54 @@ function initEditor() {
   // Corrigir transparência de voxels existentes
   fixExistingVoxelsTransparency();
 
+  // Carregar módulo de correção de iluminação
+  loadLightingFixer();
+  
+  // Carregar sistema de dispersão de luz
+  loadLightDispersionSystem();
+
 } // Fim da função initEditor()
+
+// =====================================================================
+// CARREGAMENTO DOS MÓDULOS FINAIS
+// =====================================================================
+
+// Carregar módulo de correção de iluminação
+async function loadLightingFixer() {
+  try {
+    // Carregando módulo de correção de iluminação
+    await import('./modules/lightingFixer.js');
+    // Módulo de correção de iluminação carregado
+  } catch (error) {
+    console.warn('⚠️ Erro ao carregar módulo de correção:', error);
+  }
+}
+
+// Carregar sistema de dispersão de luz
+async function loadLightDispersionSystem() {
+  try {
+    // Carregando sistema de dispersão de luz
+    
+    await import('./modules/lightDispersionSystem.js');
+    
+    // Inicializar após um pequeno delay para garantir que os objetos estejam prontos
+    setTimeout(() => {
+      if (window.scene && window.renderer && window.camera) {
+        console.log('🌟 Inicializando sistema de dispersão de luz...');
+        // O sistema se auto-inicializa, mas vamos garantir
+        if (typeof initLightDispersionSystem === 'function') {
+          initLightDispersionSystem(window.scene, window.renderer, window.camera);
+        }
+      }
+    }, 500);
+    
+    // Sistema de dispersão de luz carregado
+  } catch (error) {
+    console.error('❌ Erro ao carregar sistema de dispersão de luz:', error);
+  }
+}
+
+
 
 // Iniciar quando dependências estiverem prontas
 waitForDependencies();

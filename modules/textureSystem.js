@@ -11,7 +11,7 @@ export class TextureSystem {
     this.currentTexture = null;
     this.textureMode = 'single'; // 'single' ou 'per-face'
     
-    console.log('🎨 Sistema de Texturas inicializado');
+    // Sistema de Texturas inicializado
     this.initDefaultTextures();
   }
 
@@ -45,7 +45,7 @@ export class TextureSystem {
     // Grama
     this.createGrassTexture('grass_green', '#228B22', '#32CD32');
     
-    console.log(`🎨 ${this.textureLibrary.size} texturas procedurais criadas`);
+    // Texturas procedurais criadas
   }
 
   /**
@@ -272,7 +272,7 @@ export class TextureSystem {
             url: url
           });
           
-          console.log(`🎨 Textura carregada: ${displayName || name}`);
+          // Textura carregada
           resolve(texture);
         },
         undefined,
@@ -319,16 +319,47 @@ export class TextureSystem {
 
     const texture = this.getTexture(textureName);
     if (!texture) {
-      console.warn(`⚠️ Textura não encontrada: ${textureName}`);
+      // Textura não encontrada
       return new THREE.MeshLambertMaterial({ color: 0x888888 });
     }
 
-    const material = new THREE.MeshLambertMaterial({
-      map: texture,
-      transparent: options.transparent || false,
-      opacity: options.opacity || 1.0,
-      ...options
-    });
+    // Verificar se precisa de propriedades PBR (roughness, metalness)
+    const needsPBR = options.roughness !== undefined || options.metalness !== undefined;
+    
+    let material;
+    
+    if (needsPBR) {
+      // Usar MeshStandardMaterial para propriedades PBR
+      material = new THREE.MeshStandardMaterial({
+        map: texture,
+        transparent: options.transparent || false,
+        opacity: options.opacity || 1.0,
+        side: options.side || THREE.FrontSide,
+        roughness: options.roughness || 0.7,
+        metalness: options.metalness || 0.0,
+        color: options.color || 0xffffff,
+        emissive: options.emissive || 0x000000,
+        emissiveIntensity: options.emissiveIntensity || 0,
+        alphaTest: options.alphaTest || 0
+      });
+    } else {
+      // Usar MeshLambertMaterial para casos simples
+      const compatibleOptions = {};
+      const lambertProperties = ['transparent', 'opacity', 'color', 'emissive', 'emissiveIntensity', 'side', 'alphaTest'];
+      
+      for (const [key, value] of Object.entries(options)) {
+        if (lambertProperties.includes(key)) {
+          compatibleOptions[key] = value;
+        }
+      }
+
+      material = new THREE.MeshLambertMaterial({
+        map: texture,
+        transparent: options.transparent || false,
+        opacity: options.opacity || 1.0,
+        ...compatibleOptions
+      });
+    }
 
     this.materialCache.set(cacheKey, material);
     return material;
@@ -357,10 +388,10 @@ export class TextureSystem {
   setCurrentTexture(textureName) {
     if (this.textureLibrary.has(textureName)) {
       this.currentTexture = textureName;
-      console.log(`🎨 Textura atual definida: ${textureName}`);
+      // Textura atual definida
       return true;
     }
-    console.warn(`⚠️ Textura não encontrada: ${textureName}`);
+    // Textura não encontrada
     return false;
   }
 
@@ -376,7 +407,7 @@ export class TextureSystem {
    */
   clearCache() {
     this.materialCache.clear();
-    console.log('🧹 Cache de materiais limpo');
+    // Cache de materiais limpo
   }
 
   /**

@@ -373,7 +373,7 @@ export class ColorSystem {
         this.toggleEyedropper();
       });
 
-      console.log('Eyedropper configurado com sucesso');
+        // Eyedropper configurado
     } else {
       console.warn('Botão eyedropper não foi criado corretamente');
     }

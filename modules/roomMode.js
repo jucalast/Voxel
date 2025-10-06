@@ -134,7 +134,7 @@ export class RoomModeSystem {
           this.updateWalkModeButtonState();
         }
       );
-      console.log('✅ Sistema de caminhada e construção inicializado com funções do editor');
+      // Sistema de caminhada e construção inicializado
     } else {
       console.warn('⚠️ WalkBuildModeSystem não encontrado. Sistema de caminhada não estará disponível.');
     }
@@ -187,9 +187,20 @@ export class RoomModeSystem {
       this.enterWalkModeBtn.addEventListener('click', () => {
         if (this.walkBuildModeSystem) {
           if (this.walkBuildModeSystem.isActive) {
-            this.walkBuildModeSystem.exitWalkMode();
+            // Se está em walk mode
+            if (!this.walkBuildModeSystem.isPointerLocked) {
+              // Se cursor está liberado, primeiro clique reativa controle
+              if (window.reactivateWalkControls) {
+                window.reactivateWalkControls();
+                console.log('🎯 Controle do cursor reativado via botão');
+              }
+            } else {
+              // Se cursor está bloqueado, sair do walk mode
+              this.walkBuildModeSystem.exitWalkMode();
+            }
             this.updateWalkModeButtonState();
           } else {
+            // Entrar no walk mode
             this.walkBuildModeSystem.enterWalkMode();
             this.updateWalkModeButtonState();
           }
@@ -307,7 +318,6 @@ export class RoomModeSystem {
   // Alternar entre modos
   toggleRoomMode() {
     this.isRoomMode = !this.isRoomMode;
-    console.log('🎭 Toggle room mode. Novo estado:', this.isRoomMode);
 
     if (this.isRoomMode) {
       this.enterRoomMode();
@@ -317,8 +327,6 @@ export class RoomModeSystem {
   }
 
   enterRoomMode() {
-    console.log('🎭 Entrando no modo Sala Ambiente');
-
     // Configurar renderer para melhor qualidade de sombras
     if (this.renderer) {
       this.renderer.shadowMap.enabled = true;
@@ -341,18 +349,21 @@ export class RoomModeSystem {
       this.topBar.style.display = 'flex';
     }
 
-    // Mostrar elementos da sala
-    this.roomPanel.style.display = 'flex';
+    // Configurar controles do room mode no top-bar
+    this.setupRoomToolbar();
+    this.showRoomControls();
     document.body.classList.add('room-mode');
 
     // Criar geometria da sala usando o novo sistema de configuração
     if (window.roomConfigSystem) {
-      console.log('🏗️ Usando sistema de configuração personalizada da sala');
+      // Garantir que as dimensões padrão sejam aplicadas
+      window.roomConfigSystem.setDimensions(10, 5, 10);
+      
       window.roomConfigSystem.createRoom();
       
       // Inicializar sistema de portas e janelas se disponível
       if (window.doorWindowSystem) {
-        console.log('🚪 Sistema de portas e janelas disponível no room mode');
+        // Sistema de portas disponível
       }
     } else {
       console.log('🏗️ Usando geometria padrão da sala');
@@ -400,8 +411,8 @@ export class RoomModeSystem {
       this.topBar.style.display = 'flex';
     }
 
-    // Esconder elementos da sala
-    this.roomPanel.style.display = 'none';
+    // Esconder controles e painéis do room mode
+    this.hideRoomControls();
     document.body.classList.remove('room-mode');
 
     // Remover geometria da sala usando o novo sistema ou método tradicional
@@ -507,8 +518,6 @@ export class RoomModeSystem {
   }
 
   setupRoomLighting(lightingConfig) {
-    console.log('💡 Configurando iluminação para o modo sala:', lightingConfig);
-
     // Remover luzes existentes antes de adicionar novas
     this.removeRoomLighting();
 
@@ -642,13 +651,9 @@ export class RoomModeSystem {
 
     // Configurar nevoeiro
     this.scene.fog = new THREE.Fog(lightingConfig.fog.color, lightingConfig.fog.near, lightingConfig.fog.far);
-
-    console.log('✅ Iluminação do modo sala configurada com sucesso.');
   }
 
   removeRoomLighting() {
-    console.log('🕯️ Removendo iluminação do modo sala');
-
     // Lista de nomes das luzes e efeitos do modo sala
     const roomLightNames = [
       'roomAmbientLight',
@@ -674,8 +679,6 @@ export class RoomModeSystem {
     });
     // Remover nevoeiro
     this.scene.fog = null;
-
-    console.log('✅ Iluminação do modo sala removida');
   }
 
   updateLighting(timeOfDay) {
@@ -960,7 +963,6 @@ export class RoomModeSystem {
 
   // Função para restaurar objetos da sala na cena
   restoreRoomObjectsToScene() {
-    console.log(`👁️ Restaurando ${this.roomObjects.length} objetos da sala no room mode`);
     this.roomObjects.forEach(obj => {
       if (obj.meshGroup) {
         // Garantir que o objeto está na cena
@@ -1273,7 +1275,6 @@ export class RoomModeSystem {
 
   hideEditorVoxels() {
     if (!this.voxels || this.voxels.length === 0) {
-      console.log('📝 Nenhum voxel do editor para esconder');
       return;
     }
 
@@ -1299,4 +1300,208 @@ export class RoomModeSystem {
     });
   }
 
+  // =====================================================================
+  // SISTEMA DE PAINÉIS INDIVIDUAIS
+  // =====================================================================
+
+  setupRoomToolbar() {
+    // Configurando controles do room mode
+    
+    // Referências aos controles integrados no top-bar
+    this.roomControls = document.getElementById('room-controls');
+    this.roomUploadBtn = document.getElementById('room-upload-btn');
+    this.roomDimensionsBtn = document.getElementById('room-dimensions-btn');
+    this.roomTexturesBtn = document.getElementById('room-textures-btn');
+    this.roomDoorsBtn = document.getElementById('room-doors-btn');
+    this.roomWindowsBtn = document.getElementById('room-windows-btn');
+    this.roomVoxelTexturesBtn = document.getElementById('room-voxel-textures-btn');
+
+    // Event listeners para os botões
+    if (this.roomUploadBtn) {
+      this.roomUploadBtn.addEventListener('click', () => this.toggleRoomPanel('room-upload-panel'));
+    }
+    if (this.roomDimensionsBtn) {
+      this.roomDimensionsBtn.addEventListener('click', () => this.toggleRoomPanel('room-dimensions-panel'));
+    }
+    if (this.roomTexturesBtn) {
+      this.roomTexturesBtn.addEventListener('click', () => this.toggleRoomPanel('room-textures-panel'));
+    }
+    if (this.roomDoorsBtn) {
+      this.roomDoorsBtn.addEventListener('click', () => this.toggleRoomPanel('room-doors-panel'));
+    }
+    if (this.roomWindowsBtn) {
+      this.roomWindowsBtn.addEventListener('click', () => this.toggleRoomPanel('room-windows-panel'));
+    }
+    if (this.roomVoxelTexturesBtn) {
+      this.roomVoxelTexturesBtn.addEventListener('click', () => this.toggleRoomPanel('room-voxel-textures-panel'));
+    }
+
+    // Configurar controles de dimensões
+    this.setupDimensionsControls();
+
+    // Controles configurados
+  }
+
+  toggleRoomPanel(panelId) {
+    console.log(`🎛️ Toggle painel: ${panelId}`);
+    
+    // Fechar todos os outros painéis primeiro
+    this.closeAllRoomPanels();
+    
+    // Abrir o painel solicitado
+    const panel = document.getElementById(panelId);
+    if (panel) {
+      panel.style.display = 'block';
+      console.log(`✅ Painel ${panelId} aberto`);
+      
+      // Atualizar posição da toolbar se necessário
+      if (window.updateToolbarPosition) {
+        window.updateToolbarPosition();
+      }
+    } else {
+      console.warn(`⚠️ Painel ${panelId} não encontrado`);
+    }
+  }
+
+  closeAllRoomPanels() {
+    const panels = [
+      'room-upload-panel',
+      'room-dimensions-panel', 
+      'room-textures-panel',
+      'room-doors-panel',
+      'room-windows-panel',
+      'room-voxel-textures-panel'
+    ];
+
+    panels.forEach(panelId => {
+      const panel = document.getElementById(panelId);
+      if (panel) {
+        panel.style.display = 'none';
+      }
+    });
+  }
+
+  showRoomControls() {
+    if (this.roomControls) {
+      this.roomControls.style.display = 'flex';
+      // Controles mostrados
+    }
+  }
+
+  hideRoomControls() {
+    if (this.roomControls) {
+      this.roomControls.style.display = 'none';
+      console.log('🙈 Controles do room mode escondidos do top-bar');
+    }
+    
+    // Fechar todos os painéis também
+    this.closeAllRoomPanels();
+  }
+
+  // Método para configurar controles de dimensões
+  setupDimensionsControls() {
+    // Elementos de controle de dimensões
+    const roomWidthSlider = document.getElementById('room-width');
+    const roomHeightSlider = document.getElementById('room-height');
+    const roomDepthSlider = document.getElementById('room-depth');
+    const roomWidthValue = document.getElementById('room-width-value');
+    const roomHeightValue = document.getElementById('room-height-value');
+    const roomDepthValue = document.getElementById('room-depth-value');
+    const applyDimensionsBtn = document.getElementById('apply-dimensions');
+    const resetDimensionsBtn = document.getElementById('reset-dimensions');
+
+    // Verificar se elementos existem
+    if (!roomWidthSlider || !roomHeightSlider || !roomDepthSlider || !applyDimensionsBtn) {
+      console.warn('⚠️ Elementos de controle de dimensões não encontrados');
+      return;
+    }
+
+    // Função para atualizar displays de valor
+    const updateValueDisplays = () => {
+      if (roomWidthValue) roomWidthValue.textContent = `${roomWidthSlider.value}m`;
+      if (roomHeightValue) roomHeightValue.textContent = `${roomHeightSlider.value}m`;
+      if (roomDepthValue) roomDepthValue.textContent = `${roomDepthSlider.value}m`;
+    };
+
+    // Event listeners para sliders
+    if (roomWidthSlider) {
+      roomWidthSlider.addEventListener('input', updateValueDisplays);
+    }
+    if (roomHeightSlider) {
+      roomHeightSlider.addEventListener('input', updateValueDisplays);
+    }
+    if (roomDepthSlider) {
+      roomDepthSlider.addEventListener('input', updateValueDisplays);
+    }
+
+    // Inicializar displays com valores atuais
+    updateValueDisplays();
+
+    // Botão aplicar dimensões
+    if (applyDimensionsBtn) {
+      applyDimensionsBtn.addEventListener('click', () => {
+        const width = parseInt(roomWidthSlider.value);
+        const height = parseInt(roomHeightSlider.value);
+        const depth = parseInt(roomDepthSlider.value);
+
+        console.log(`📏 Aplicando dimensões: ${width}x${height}x${depth}`);
+
+        // Usar RoomConfigSystem se disponível
+        if (window.roomConfigSystem) {
+          window.roomConfigSystem.setDimensions(width, height, depth);
+          console.log('✅ Dimensões aplicadas via RoomConfigSystem');
+        } else {
+          console.warn('⚠️ RoomConfigSystem não disponível');
+        }
+      });
+    }
+
+    // Botão resetar dimensões
+    if (resetDimensionsBtn) {
+      resetDimensionsBtn.addEventListener('click', () => {
+        console.log('🔄 Resetando dimensões para valores padrão');
+
+        // Valores padrão
+        const defaultWidth = 20;
+        const defaultHeight = 10;
+        const defaultDepth = 20;
+
+        // Resetar sliders
+        if (roomWidthSlider) roomWidthSlider.value = defaultWidth;
+        if (roomHeightSlider) roomHeightSlider.value = defaultHeight;
+        if (roomDepthSlider) roomDepthSlider.value = defaultDepth;
+
+        // Atualizar displays
+        updateValueDisplays();
+
+        // Aplicar dimensões padrão
+        if (window.roomConfigSystem) {
+          window.roomConfigSystem.setDimensions(defaultWidth, defaultHeight, defaultDepth);
+          console.log('✅ Dimensões resetadas via RoomConfigSystem');
+        }
+      });
+    }
+
+    // Controles de dimensões configurados
+  }
 }
+
+// =====================================================================
+// FUNÇÕES GLOBAIS PARA CONTROLE DOS PAINÉIS
+// =====================================================================
+
+window.closeRoomPanel = function(panelId) {
+  console.log(`🔒 Fechando painel: ${panelId}`);
+  const panel = document.getElementById(panelId);
+  if (panel) {
+    panel.style.display = 'none';
+    console.log(`✅ Painel ${panelId} fechado`);
+    
+    // Atualizar posição da toolbar se necessário
+    if (window.updateToolbarPosition) {
+      window.updateToolbarPosition();
+    }
+  } else {
+    console.warn(`⚠️ Painel ${panelId} não encontrado para fechar`);
+  }
+};

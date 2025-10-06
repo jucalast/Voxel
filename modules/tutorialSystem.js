@@ -51,7 +51,7 @@ export class TutorialSystem {
     this.createTutorialPanel();
     this.loadProgress();
     
-    console.log('🎓 Sistema de Tutorial inicializado');
+    // Sistema de Tutorial inicializado
   }
 
   // =====================================================================
@@ -247,7 +247,7 @@ export class TutorialSystem {
 
   registerTutorial(id, tutorialData) {
     this.tutorials.set(id, tutorialData);
-    console.log(`📚 Tutorial registrado: ${id}`);
+    // Tutorial registrado
   }
 
   startTutorial(id) {

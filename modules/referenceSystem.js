@@ -21,17 +21,7 @@ export class ReferenceImageSystem {
     this.resizeHandle = document.getElementById('resize-handle');
     
     // Debug: verificar se elementos flutuantes existem
-    console.log('Elementos de referência encontrados:', {
-      uploadElement: !!this.uploadElement,
-      fileUploadSystem: !!this.fileUploadSystem,
-      container: !!this.floatingContainer,
-      image: !!this.floatingImage,
-      opacityBtn: !!this.floatingOpacityBtn,
-      removeBtn: !!this.floatingRemoveBtn,
-      header: !!this.floatingHeader,
-      resizeHandle: !!this.resizeHandle
-    });
-    
+    // Elementos de referência encontrados
     if (!this.fileUploadSystem) {
       console.warn('fileUploadSystem is null, upload functionality may not work.');
     }
