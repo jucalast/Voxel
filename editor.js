@@ -8,7 +8,14 @@ function waitForDependencies() {
       typeof OrbitControls === 'undefined' ||
       typeof ColorSystem === 'undefined' ||
       typeof ReferenceImageSystem === 'undefined' ||
-      typeof MouseInteractionSystem === 'undefined') {
+      typeof MouseInteractionSystem === 'undefined' ||
+      typeof ExportSystem === 'undefined' ||
+      typeof VoxelSelectionSystem === 'undefined' ||
+      typeof AreaFillSystem === 'undefined' ||
+      typeof UploadHistorySystem === 'undefined' ||
+      typeof HelpSystem === 'undefined' ||
+      typeof EditorLightingSystem === 'undefined' ||
+      typeof HybridInteractionSystem === 'undefined') {
     console.log('Aguardando dependências...');
     setTimeout(waitForDependencies, 100);
     return;
@@ -32,18 +39,30 @@ function initEditor() {
   const tutorialBtn = document.getElementById('tutorialBtn');
   const leftPanel = document.getElementById('left-panel');
   const iconToolbar = document.getElementById('icon-toolbar');
-  
-  
-  // Elementos do sistema de ajuda
-  const helpButton = document.getElementById('help-button');
-  const helpPanel = document.getElementById('help-panel');
-  const helpClose = document.getElementById('help-close');
-
-  // Elementos da IA removidos
 
   // Inicializar sistema de upload de arquivos
   const fileUploadSystem = new FileUploadSystem();
   window.fileUploadSystem = fileUploadSystem;
+
+  // Inicializar sistema de histórico de uploads
+  const uploadHistorySystem = new UploadHistorySystem(
+    document.getElementById('upload-history-sidebar'),
+    document.getElementById('uploadHistoryBtn'),
+    document.getElementById('uploadHistorySidebarCloseBtn'),
+    document.getElementById('uploadHistoryList'),
+    document.getElementById('voxelFileInput'),
+    document.getElementById('icon-toolbar'),
+    fileUploadSystem
+  );
+  window.uploadHistorySystem = uploadHistorySystem;
+
+  // Inicializar sistema de ajuda
+  const helpSystem = new HelpSystem(
+    document.getElementById('help-button'),
+    document.getElementById('help-panel'),
+    document.getElementById('help-close')
+  );
+  window.helpSystem = helpSystem;
 
   // Elementos da imagem de referência (agora gerenciados pelo FileUploadSystem)
   const referenceUpload = document.getElementById('uploadBtn');
@@ -62,6 +81,9 @@ function initEditor() {
 
   // Sistema de cores
   const colorSystem = new ColorSystem(colorPalette);
+
+  // Sistema de exportação (será inicializado após voxels estarem prontos)
+  let exportSystem = null;
 
   // Definir callbacks para o sistema de upload de arquivos
   fileUploadSystem.setCallbacks({
@@ -220,6 +242,12 @@ function initEditor() {
     removeRefBtn
   );
 
+  // Inicializar sistema de histórico de uploads
+  uploadHistorySystem.init();
+
+  // Inicializar sistema de ajuda
+  helpSystem.init();
+
   // --- New Voxel Uploader Logic ---
   const roomVoxelFileInput = document.getElementById('voxel-file-input');
 
@@ -246,6 +274,10 @@ function initEditor() {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0a0a);
+
+  // Inicializar sistema de iluminação do editor
+  const editorLightingSystem = new EditorLightingSystem(scene);
+  window.editorLightingSystem = editorLightingSystem;
 
   // Câmera ortográfica
   const size = 20;
@@ -286,6 +318,9 @@ function initEditor() {
   resizeRenderer();
   window.addEventListener('resize', resizeRenderer);
 
+  // Inicializar sistema de iluminação do editor
+  editorLightingSystem.init();
+
   function resizeRenderer() {
     const container = document.getElementById('three-container');
     const width = container.clientWidth;
@@ -299,59 +334,6 @@ function initEditor() {
     camera.updateProjectionMatrix();
   }
 
-  // =====================================================================
-  // ILUMINAÇÃO OTIMIZADA PARA MELHOR VISIBILIDADE
-  // =====================================================================
-
-  // Luz ambiente mais forte para melhor visibilidade geral
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-  scene.add(ambientLight);
-
-  // Luz direcional principal (mais forte e melhor posicionada)
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-  directionalLight.position.set(15, 25, 15);
-  directionalLight.target.position.set(0, 0, 0);
-  directionalLight.castShadow = true;
-  directionalLight.shadow.mapSize.width = 2048;
-  directionalLight.shadow.mapSize.height = 2048;
-  directionalLight.shadow.camera.near = 0.5;
-  directionalLight.shadow.camera.far = 100;
-  directionalLight.shadow.camera.left = -30;
-  directionalLight.shadow.camera.right = 30;
-  directionalLight.shadow.camera.top = 30;
-  directionalLight.shadow.camera.bottom = -30;
-  directionalLight.shadow.bias = -0.0001;
-  directionalLight.shadow.radius = 5; // Aumenta o borrão das sombras para um efeito mais suave
-  scene.add(directionalLight);
-  scene.add(directionalLight.target);
-
-  // Luz de preenchimento para reduzir sombras fortes
-  const fillLight = new THREE.DirectionalLight(0x8080ff, 0.3);
-  fillLight.position.set(-10, 15, -10);
-  scene.add(fillLight);
-
-  // Luz traseira para melhor iluminação geral
-  const backLight = new THREE.DirectionalLight(0xff8080, 0.2);
-  backLight.position.set(0, 10, -15);
-  scene.add(backLight);
-  directionalLight.shadow.radius = 8;  // Aumenta o borrão das sombras (valores maiores = mais suave)
-  // Luz superior para iluminação uniforme
-  const topLight = new THREE.DirectionalLight(0xffffff, 0.4);
-  topLight.position.set(0, 20, 0);
-  topLight.target.position.set(0, 0, 0);
-  scene.add(topLight);
-  scene.add(topLight.target);
-
-  // Luzes pontuais para iluminação local adicional
-  const pointLight1 = new THREE.PointLight(0xffffff, 0.6, 25);
-  pointLight1.position.set(8, 8, 8);
-  scene.add(pointLight1);
-
-  const pointLight2 = new THREE.PointLight(0xffffff, 0.6, 25);
-  pointLight2.position.set(-8, 8, -8);
-  scene.add(pointLight2);
-
-  // Sistema de iluminação configurado
 
   // =====================================================================
   // CONTROLES DE CÂMERA E GRADE
@@ -457,6 +439,30 @@ function initEditor() {
   const history = [];
   let historyIndex = -1;
 
+  // Inicializar sistema de exportação
+  try {
+    exportSystem = new ExportSystem(voxels);
+  } catch (error) {
+    console.error('❌ Erro ao inicializar sistema de exportação:', error);
+    exportSystem = null;
+  }
+
+  // Inicializar sistema de seleção de voxels
+  let voxelSelectionSystem = null;
+  try {
+    voxelSelectionSystem = new VoxelSelectionSystem(scene, voxels, saveState, removeVoxel);
+  } catch (error) {
+    console.error('❌ Erro ao inicializar sistema de seleção:', error);
+  }
+
+  // Inicializar sistema de preenchimento de área
+  let areaFillSystem = null;
+  try {
+    areaFillSystem = new AreaFillSystem(scene, voxels, addVoxel, removeVoxel, saveState, () => colorSystem.getSelectedColor());
+  } catch (error) {
+    console.error('❌ Erro ao inicializar sistema de área:', error);
+  }
+
   function updateVoxelCount() {
     if (voxelCount) {
       voxelCount.textContent = voxels.length.toString();
@@ -481,8 +487,6 @@ function initEditor() {
     const gridX = Math.round(x);
     const gridY = Math.round(y);
     const gridZ = Math.round(z);
-    
-    console.log('Adicionando voxel na grade:', gridX, gridY, gridZ, color);
     
     // Verifica se já existe voxel na posição
     const existingVoxel = voxels.find(voxel => {
@@ -543,8 +547,6 @@ function initEditor() {
       material.opacity = 1.0;
     }
 
-    console.log(`🎨 Material otimizado criado para voxel: ${color.toString(16)}`);
-    
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(gridX, gridY, gridZ); // Usa coordenadas alinhadas
     mesh.castShadow = true;
@@ -563,9 +565,9 @@ function initEditor() {
 
   function removeVoxel(mesh, saveHistory = true) {
     // Desselecionar voxel se estiver selecionado
-    if (selectedVoxels.has(mesh)) {
-      selectedVoxels.delete(mesh);
-      removeSelectionHighlight(mesh);
+    if (voxelSelectionSystem && voxelSelectionSystem.getSelectedVoxels().has(mesh)) {
+      voxelSelectionSystem.getSelectedVoxels().delete(mesh);
+      voxelSelectionSystem.removeSelectionHighlight(mesh);
       console.log('➖ Voxel desselecionado automaticamente ao ser excluído');
     }
     
@@ -578,8 +580,8 @@ function initEditor() {
 
   function clearScene() {
     // Limpar todas as seleções antes de remover voxels
-    clearSelection();
-    clearAreaSelection();
+    if (voxelSelectionSystem) voxelSelectionSystem.clearSelection();
+    if (areaFillSystem) areaFillSystem.clearAreaSelection();
     
     voxels.forEach(voxel => scene.remove(voxel));
     voxels.length = 0;
@@ -645,8 +647,8 @@ function initEditor() {
   if (menuBtn) {
     menuBtn.onclick = () => {
       // Fechar sidebar de histórico se estiver aberto
-      if (uploadHistorySidebar && uploadHistorySidebar.classList.contains('show')) {
-        closeUploadHistorySidebar();
+      if (uploadHistorySystem.isOpen()) {
+        uploadHistorySystem.close();
       }
 
       // Verificar se estamos no modo sala
@@ -660,73 +662,111 @@ function initEditor() {
       }
 
       // Atualizar posição da barra de ferramentas considerando todos os estados
-      updateToolbarPosition();
+      uploadHistorySystem.updateToolbarPosition();
     };
   }
 
-  // Botão de tutorial será configurado após definição das funções
 
-  // Sistema de ajuda
-  if (helpButton) {
-    helpButton.onclick = () => {
-      helpPanel.classList.toggle('show');
-      console.log('📚 Painel de ajuda alternado');
-    };
-  }
+  // =====================================================================
+  // ATALHOS DE TECLADO PRINCIPAIS
+  // =====================================================================
 
-  if (helpClose) {
-    helpClose.onclick = () => {
-      helpPanel.classList.remove('show');
-      console.log('📚 Painel de ajuda fechado');
-    };
-  }
-
-  // Fechar painel de ajuda ao clicar fora
-  document.addEventListener('click', (e) => {
-    if (helpPanel.classList.contains('show') && 
-        !helpPanel.contains(e.target) && 
-        !helpButton.contains(e.target)) {
-      helpPanel.classList.remove('show');
-    }
-  });
-
-  // Atalho F1 para abrir ajuda
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'F1') {
+    // Atalho Ctrl+Z para desfazer
+    if (e.ctrlKey && e.key === 'z') {
       e.preventDefault();
-      helpPanel.classList.toggle('show');
+      undo();
+    }
+    
+    // Atalho Delete/Backspace para deletar seleção ou limpar cena
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      if (voxelSelectionSystem && voxelSelectionSystem.hasSelection()) {
+        voxelSelectionSystem.deleteSelectedVoxels();
+      } else if (confirm('Limpar toda a cena?')) {
+        clearScene();
+      }
+    }
+    
+    // Movimentação com setas e W/S para voxels selecionados
+    if (voxelSelectionSystem && voxelSelectionSystem.hasSelection() && 
+        (e.key.startsWith('Arrow') || e.key === 'PageUp' || e.key === 'PageDown' || e.code === 'KeyW' || e.code === 'KeyS')) {
+      e.preventDefault();
+      voxelSelectionSystem.moveSelectedVoxels(e.code || e.key);
+    }
+    // Expansão de área com setas e W/S (se há área selecionada e não há voxels selecionados)
+    else if (areaFillSystem && areaFillSystem.hasAreaSelected() && 
+             (!voxelSelectionSystem || !voxelSelectionSystem.hasSelection()) && 
+             (e.key.startsWith('Arrow') || e.key === 'PageUp' || e.key === 'PageDown' || e.code === 'KeyW' || e.code === 'KeyS')) {
+      e.preventDefault();
+      areaFillSystem.expandArea(e.code || e.key);
+    }
+    
+    // Atalho para selecionar todos os voxels (Ctrl+A)
+    if (e.ctrlKey && e.key === 'a') {
+      e.preventDefault();
+      if (voxelSelectionSystem) voxelSelectionSystem.selectAllVoxels();
+    }
+    
+    // Atalho para limpar seleção (Escape)
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (voxelSelectionSystem && voxelSelectionSystem.hasSelection()) {
+        voxelSelectionSystem.clearSelection();
+        updateCursor();
+      } else if (areaFillSystem && areaFillSystem.hasAreaSelected()) {
+        areaFillSystem.clearAreaSelection();
+        console.log('📦 Área cancelada');
+        updateCursor();
+      }
+    }
+    
+    // Atalho para alternar modo sala (R)
+    if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+      if (roomModeSystem) {
+        roomModeSystem.toggleRoomMode();
+        console.log('🏠 Modo sala alternado via atalho R');
+      } else {
+        console.warn('⚠️ Sistema de modo sala não disponível');
+      }
+    }
+    
+    // Sistema de criação de área com Ctrl (gerenciado pelo HybridInteractionSystem)
+    if (e.key === 'Control') {
+      // Estado agora gerenciado pelo HybridInteractionSystem
+      console.log('🎮 Ctrl pressionado - Modo criação de área ativo');
+      console.log('📝 Ctrl + Clique + Arrastar para criar áreas');
+      console.log('📝 Setas ← → ↑ ↓ = Expandir horizontalmente');
+      console.log('📝 W/S = Expandir para cima/baixo');
+    }
+    
+    // Sistema de seleção e movimentação (gerenciado pelo HybridInteractionSystem)
+    if (e.key === 'Shift') {
+      // Estado agora gerenciado pelo HybridInteractionSystem
+      console.log('🎮 Shift pressionado - Modo seleção ativo');
+      console.log('📝 Dicas de seleção:');
+      console.log('  • Shift + Clique = Seleção individual');
+      console.log('  • Shift + Ctrl + Clique = Seleção por cor');
+      console.log('  • Shift + Alt + Clique = Seleção conectada');
+      console.log('  • Shift + Arrastar = Mover câmera pela grade');
+      console.log('  • Setas ← → ↑ ↓ = Mover horizontalmente');
+      console.log('  • W/S = Mover para cima/baixo');
     }
   });
 
-  // Sistema de ajuda
-  if (helpButton) {
-    helpButton.onclick = () => {
-      helpPanel.classList.toggle('show');
-      console.log('📚 Painel de ajuda alternado');
-    };
-  }
-
-  if (helpClose) {
-    helpClose.onclick = () => {
-      helpPanel.classList.remove('show');
-      console.log('📚 Painel de ajuda fechado');
-    };
-  }
-
-  // Fechar painel de ajuda ao clicar fora
-  document.addEventListener('click', (e) => {
-    if (helpPanel.classList.contains('show') && 
-        !helpPanel.contains(e.target) && 
-        !helpButton.contains(e.target)) {
-      helpPanel.classList.remove('show');
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'Control') {
+      // Estado agora gerenciado pelo HybridInteractionSystem
+      console.log('🎮 Ctrl solto - Modo normal restaurado');
+      if (areaFillSystem && areaFillSystem.hasAreaSelected()) {
+        console.log('📦 Área ainda ativa - Use setas para expandir ou Escape para cancelar');
+      }
     }
-  });
-
-  // Atalho F1 para abrir ajuda
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'F1') {
-      e.preventDefault();
-      helpPanel.classList.toggle('show');
+    
+    if (e.key === 'Shift') {
+      // Estado agora gerenciado pelo HybridInteractionSystem  
+      console.log('🎮 Shift solto - Modo normal restaurado');
     }
   });
 
@@ -754,9 +794,9 @@ function initEditor() {
     const objectsToCheck = [];
     
     // Adicionar handles de redimensionamento (prioridade alta)
-    if (areaResizeHandles && areaResizeHandles.length > 0) {
-      objectsToCheck.push(...areaResizeHandles);
-      console.log('🔍 Verificando interseção com', areaResizeHandles.length, 'handles');
+    if (areaFillSystem && areaFillSystem.getResizeHandles().length > 0) {
+      objectsToCheck.push(...areaFillSystem.getResizeHandles());
+      console.log('🔍 Verificando interseção com', areaFillSystem.getResizeHandles().length, 'handles');
     }
     
     // Adicionar voxels
@@ -788,597 +828,6 @@ function initEditor() {
     return null;
   }
 
-  // =====================================================================
-  // SISTEMA DE PREENCHIMENTO EM ÁREA
-  // =====================================================================
-
-  function clearFillPreview() {
-    fillPreviewVoxels.forEach(preview => {
-      scene.remove(preview);
-    });
-    fillPreviewVoxels = [];
-  }
-
-  function clearAreaSelection() {
-   
-    clearAreaVisualization();
-    clearFillPreview();
-    
-    // Reabilitar todos os controles quando sair do modo de área
-    controls.enabled = true;
-    controls.enableRotate = true;
-    controls.enablePan = true;
-    controls.enableZoom = true;
-    
-    updateCursor();
-  }
-
-  function clearAreaVisualization() {
-    // Remove visualização da área selecionada
-    const existingAreaBox = scene.getObjectByName('areaSelection');
-    if (existingAreaBox) {
-      scene.remove(existingAreaBox);
-    }
-    areaBox = null;
-    
-    // Limpar handles de redimensionamento
-    clearResizeHandles();
-  }
-
-  function createFillPreview(start, end, color) {
-    clearFillPreview();
-
-    const minX = Math.min(start.x, end.x);
-    const maxX = Math.max(start.x, end.x);
-    const minY = Math.min(start.y, end.y);
-    const maxY = Math.max(start.y, end.y);
-    const minZ = Math.min(start.z, end.z);
-    const maxZ = Math.max(start.z, end.z);
-
-    for (let x = minX; x <= maxX; x++) {
-      for (let y = minY; y <= maxY; y++) {
-        for (let z = minZ; z <= maxZ; z++) {
-          // Verificar se já existe voxel na posição
-          const existingVoxel = voxels.find(voxel => 
-            Math.round(voxel.position.x) === x && 
-            Math.round(voxel.position.y) === y && 
-            Math.round(voxel.position.z) === z
-          );
-
-          if (!existingVoxel) {
-            // Criar preview visual
-            const previewGeometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
-            const previewMaterial = new THREE.MeshBasicMaterial({ 
-              color: color,
-              transparent: true,
-              opacity: 0.5,
-              wireframe: true
-            });
-            
-            const previewMesh = new THREE.Mesh(previewGeometry, previewMaterial);
-            previewMesh.position.set(x, y, z);
-            previewMesh.userData.isPreview = true;
-            
-            scene.add(previewMesh);
-            fillPreviewVoxels.push(previewMesh);
-          }
-        }
-      }
-    }
-  }
-
-  function fillArea(start, end, color) {
-    const minX = Math.min(start.x, end.x);
-    const maxX = Math.max(start.x, end.x);
-    const minY = Math.min(start.y, end.y);
-    const maxY = Math.max(start.y, end.y);
-    const minZ = Math.min(start.z, end.z);
-    const maxZ = Math.max(start.z, end.z);
-
-    let addedCount = 0;
-
-    for (let x = minX; x <= maxX; x++) {
-      for (let y = minY; y <= maxY; y++) {
-        for (let z = minZ; z <= maxZ; z++) {
-          // Verificar se já existe voxel na posição
-          const existingVoxel = voxels.find(voxel => 
-            Math.round(voxel.position.x) === x && 
-            Math.round(voxel.position.y) === y && 
-            Math.round(voxel.position.z) === z
-          );
-
-          if (!existingVoxel) {
-            addVoxel(x, y, z, color, false);
-            addedCount++;
-          }
-        }
-      }
-    }
-
-    // Salvar estado uma vez no final
-    if (addedCount > 0) {
-      saveState();
-    }
-
-    // Criar área selecionada para expansão
-    selectedArea = {
-      minX, maxX, minY, maxY, minZ, maxZ,
-      color: color
-    };
-    isAreaSelected = true;
-    showAreaSelection(selectedArea);
-
-    console.log(`Área preenchida: ${addedCount} voxels adicionados`);
-  }
-
-  function showAreaSelection(area) {
-    clearAreaVisualization();
-
-    const width = area.maxX - area.minX + 1;
-    const height = area.maxY - area.minY + 1;
-    const depth = area.maxZ - area.minZ + 1;
-
-    const centerX = (area.minX + area.maxX) / 2;
-    const centerY = (area.minY + area.maxY) / 2;
-    const centerZ = (area.minZ + area.maxZ) / 2;
-
-    // Criar wireframe da área selecionada
-    const boxGeometry = new THREE.BoxGeometry(width, height, depth);
-    const boxMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00ff00,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.8
-    });
-
-    areaBox = new THREE.Mesh(boxGeometry, boxMaterial);
-    areaBox.position.set(centerX, centerY, centerZ);
-    areaBox.name = 'areaSelection';
-    
-    scene.add(areaBox);
-    
-    // Criar handles visuais para redimensionamento
-    createResizeHandles(area);
-    
-    console.log(`📐 Área: ${width}x${height}x${depth} (${width * height * depth} voxels)`);
-  }
-  
-  function createAreaFromDrag(startPos, endPos) {
-    const minX = Math.min(startPos.x, endPos.x);
-    const maxX = Math.max(startPos.x, endPos.x);
-    const minY = Math.min(startPos.y, endPos.y);
-    const maxY = Math.max(startPos.y, endPos.y);
-    const minZ = Math.min(startPos.z, endPos.z);
-    const maxZ = Math.max(startPos.z, endPos.z);
-    
-    selectedArea = {
-      minX, maxX, minY, maxY, minZ, maxZ,
-      color: colorSystem.getSelectedColor()
-    };
-    
-    isAreaSelected = true;
-    showAreaSelection(selectedArea);
-    
-    // Preencher a área imediatamente
-    fillAreaWithVoxels(selectedArea);
-    
-    console.log(`📦 Área criada: ${maxX-minX+1}x${maxY-minY+1}x${maxZ-minZ+1}`);
-    console.log('🎮 Use as setas para expandir a área!');
-  }
-  
-  function fillAreaWithVoxels(area) {
-    let addedCount = 0;
-    
-    for (let x = area.minX; x <= area.maxX; x++) {
-      for (let y = area.minY; y <= area.maxY; y++) {
-        for (let z = area.minZ; z <= area.maxZ; z++) {
-          // Verificar se já existe voxel na posição
-          const existingVoxel = voxels.find(voxel => 
-            Math.round(voxel.position.x) === x && 
-            Math.round(voxel.position.y) === y && 
-            Math.round(voxel.position.z) === z
-          );
-
-          if (!existingVoxel) {
-            addVoxel(x, y, z, area.color, false);
-            addedCount++;
-          }
-        }
-      }
-    }
-    
-    if (addedCount > 0) {
-      saveState();
-    }
-    
-    return addedCount;
-  }
-
-  function expandArea(direction) {
-    if (!selectedArea) {
-      console.log('❌ Nenhuma área selecionada para expandir');
-      return;
-    }
-
-    const { minX, maxX, minY, maxY, minZ, maxZ, color } = selectedArea;
-    let newArea = { ...selectedArea };
-
-    switch(direction) {
-      case 'ArrowUp': // Para frente (Z-)
-        newArea.minZ -= 1;
-        break;
-      case 'ArrowDown': // Para trás (Z+)
-        newArea.maxZ += 1;
-        break;
-      case 'ArrowRight': // Para direita (X+)
-        newArea.maxX += 1;
-        break;
-      case 'ArrowLeft': // Para esquerda (X-)
-        newArea.minX -= 1;
-        break;
-      case 'KeyW': // W para cima (Y+)
-        newArea.maxY += 1;
-        break;
-      case 'KeyS': // S para baixo (Y-)
-        newArea.minY -= 1;
-        break;
-      case 'PageUp': // Manter compatibilidade
-        newArea.maxY += 1;
-        break;
-      case 'PageDown': // Manter compatibilidade
-        newArea.minY -= 1;
-        break;
-      default:
-        return;
-    }
-
-    // Verificar limites mínimos
-    if (newArea.minX > newArea.maxX || 
-        newArea.minY > newArea.maxY || 
-        newArea.minZ > newArea.maxZ) {
-      console.log('❌ Não é possível expandir mais nesta direção');
-      return;
-    }
-
-    // Atualizar área
-    selectedArea = newArea;
-    showAreaSelection(selectedArea);
-    
-    // Preencher apenas os novos voxels
-    const addedVoxels = fillAreaWithVoxels(selectedArea);
-    
-    const directionName = {
-      'ArrowUp': 'frente',
-      'ArrowDown': 'trás', 
-      'ArrowRight': 'direita',
-      'ArrowLeft': 'esquerda',
-      'KeyW': 'cima',
-      'KeyS': 'baixo',
-      'PageUp': 'cima',
-      'PageDown': 'baixo'
-    }[direction];
-    
-    console.log(`📈 Área expandida para ${directionName} (+${addedVoxels} voxels)`);
-  }
-
-  // Atalhos de teclado
-  document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 'z') {
-      e.preventDefault();
-      undo();
-    }
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-      e.preventDefault();
-      if (selectedVoxels.size > 0) {
-        deleteSelectedVoxels();
-      } else if (confirm('Limpar toda a cena?')) {
-        clearScene();
-      }
-    }
-    
-    // Sistema de criação de área com Ctrl
-    if (e.key === 'Control') {
-      if (!isCtrlPressed) {
-        isCtrlPressed = true;
-        updateCursor();
-        console.log('🎮 Ctrl pressionado - Modo criação de área ativo');
-        console.log('📝 Ctrl + Clique + Arrastar para criar áreas');
-        console.log('📝 Setas ← → ↑ ↓ = Expandir horizontalmente');
-        console.log('📝 W/S = Expandir para cima/baixo');
-      }
-    }
-    
-    // Sistema de seleção e movimentação
-    if (e.key === 'Shift') {
-      if (!isShiftPressed) {
-        isShiftPressed = true;
-        isInMoveMode = true;
-        updateCursor();
-        console.log('🎮 Shift pressionado - Modo seleção ativo');
-        console.log('📝 Dicas de seleção:');
-        console.log('  • Shift + Clique = Seleção individual');
-        console.log('  • Shift + Ctrl + Clique = Seleção por cor');
-        console.log('  • Shift + Alt + Clique = Seleção conectada');
-        console.log('  • Shift + Arrastar = Mover câmera pela grade');
-        console.log('  • Setas ← → ↑ ↓ = Mover horizontalmente');
-        console.log('  • W/S = Mover para cima/baixo');
-      }
-    }
-    
-    // Movimentação com setas e W/S
-    if (selectedVoxels.size > 0 && (e.key.startsWith('Arrow') || e.key === 'PageUp' || e.key === 'PageDown' || e.code === 'KeyW' || e.code === 'KeyS')) {
-      e.preventDefault();
-      moveSelectedVoxels(e.code || e.key);
-    }
-    // Expansão de área com setas e W/S (se há área selecionada e não há voxels selecionados)
-    else if (isAreaSelected && selectedArea && selectedVoxels.size === 0 && (e.key.startsWith('Arrow') || e.key === 'PageUp' || e.key === 'PageDown' || e.code === 'KeyW' || e.code === 'KeyS')) {
-      e.preventDefault();
-      expandArea(e.code || e.key);
-    }
-    
-    // Atalho para selecionar todos os voxels
-    if (e.ctrlKey && e.key === 'a') {
-      e.preventDefault();
-      selectAllVoxels();
-    }
-    
-    // Atalho para limpar seleção
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      if (selectedVoxels.size > 0) {
-        clearSelection();
-        updateCursor();
-      } else if (isAreaSelected) {
-        clearAreaSelection();
-        console.log('📦 Área cancelada');
-        updateCursor();
-      }
-    }
-    
-    // Atalho para alternar modo sala (R)
-    if (e.key === 'r' || e.key === 'R') {
-      e.preventDefault();
-      if (roomModeSystem) {
-        roomModeSystem.toggleRoomMode();
-        console.log('🏠 Modo sala alternado via atalho R');
-      } else {
-        console.warn('⚠️ Sistema de modo sala não disponível');
-      }
-    }
-  });
-
-  document.addEventListener('keyup', (e) => {
-    if (e.key === 'Control') {
-      isCtrlPressed = false;
-      isInMoveMode = false;
-      
-      // Limpar previews apenas se não há área ativa
-      if (!isAreaSelected) {
-        clearFillPreview();
-        clearAreaSelection();
-      }
-      
-      updateCursor();
-      
-      // Reset do sistema
-      isDoubleClicking = false;
-      isCreatingArea = false;
-      isAreaDragging = false;
-      
-      // Reabilitar todos os controles apenas se não estamos em modo de área
-      if (!isAreaSelected) {
-        controls.enabled = true;
-        controls.enableRotate = true;
-        controls.enablePan = true;
-        controls.enableZoom = true;
-      }
-      
-      console.log('🎮 Ctrl solto - Modo normal restaurado');
-      if (isAreaSelected) {
-        console.log('📦 Área ainda ativa - Use setas para expandir ou Escape para cancelar');
-      }
-    }
-    
-    if (e.key === 'Shift') {
-      isShiftPressed = false;
-      isInMoveMode = false;
-      
-      // Reset do sistema de seleção
-      isDoubleClicking = false;
-      
-      // Reabilitar todos os controles apenas se não há área ativa
-      if (!isAreaSelected) {
-        controls.enabled = true;
-        controls.enableRotate = true;
-        controls.enablePan = true;
-        controls.enableZoom = true;
-      }
-      
-      updateCursor();
-      console.log('🎮 Shift solto - Modo normal restaurado');
-    }
-  });
-
-  // Função para atualizar cursor baseado no modo
-  function updateCursor() {
-    if (isCreatingArea || isAreaDragging) {
-      canvas.style.cursor = 'copy'; // Cursor para criação de área
-    } else if (isInMoveMode && selectedVoxels.size > 0) {
-      canvas.style.cursor = 'grab';
-    } else if (isDragging && isShiftPressed && controls.mouseButtons.LEFT === THREE.MOUSE.PAN) {
-      canvas.style.cursor = 'move'; // Cursor para pan da câmera
-    } else if (isCtrlPressed) {
-      canvas.style.cursor = 'copy'; // Cursor de cópia para criação de área
-    } else if (isShiftPressed) {
-      canvas.style.cursor = 'crosshair';
-    } else if (isAreaSelected) {
-      canvas.style.cursor = 'move'; // Cursor para expandir área
-    } else {
-      // Cursor normal quando nenhum modificador está ativo
-      canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"34\" height=\"34\" viewBox=\"0 0 34 34\" fill=\"none\"><defs><filter id=\"shadow\" x=\"-50%%\" y=\"-50%%\" width=\"200%%\" height=\"200%%\"><feDropShadow dx=\"2\" dy=\"2\" stdDeviation=\"2\" flood-color=\"rgba(0,0,0,0.8)\"/></filter></defs><path d=\"M6 6 C6 6 6.5 6 7 6.2 L25 16 C25.8 16.4 25.8 16.9 25 17.3 L16 19.5 C15.3 19.7 15 20.1 14.8 20.8 L12.8 28 C12.6 28.7 12 28.7 11.8 28 L6 8.5 C5.7 7.8 5.7 6.3 6 6 Z\" fill=\"black\" stroke=\"white\" stroke-width=\"2.2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" filter=\"url(%23shadow)\"/><path d=\"M8 9 L12 18 L16 20 L23 17.5\" stroke=\"rgba(255,255,255,0.3)\" stroke-width=\"1\" fill=\"none\" stroke-linecap=\"round\"/></svg>') 6 6, auto";
-    }
-  }
-
-  // =====================================================================
-  // SISTEMA DE MOVIMENTAÇÃO COM ARRASTAR (MODO VISUAL)
-  // =====================================================================
-  
-  let dragPreviewMeshes = [];
-  let isDraggingWithMouse = false;
-  
-  function startDragPreview(startPos) {
-    if (selectedVoxels.size === 0) return;
-    
-    clearDragPreview();
-    isDraggingWithMouse = true;
-    
-    // Criar preview visual dos voxels sendo arrastados
-    selectedVoxels.forEach(voxel => {
-      const previewGeometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
-      const previewMaterial = new THREE.MeshBasicMaterial({
-        color: voxel.userData.color,
-        transparent: true,
-        opacity: 0.6,
-        wireframe: false
-      });
-      
-      const previewMesh = new THREE.Mesh(previewGeometry, previewMaterial);
-      previewMesh.position.copy(voxel.position);
-      previewMesh.userData.originalVoxel = voxel;
-      previewMesh.userData.isPreview = true;
-      
-      scene.add(previewMesh);
-      dragPreviewMeshes.push(previewMesh);
-      
-      // Esconder voxel original temporariamente
-      voxel.visible = false;
-      if (voxel.userData.selectionOutline) {
-        voxel.userData.selectionOutline.visible = false;
-      }
-    });
-    
-    console.log('🚀 Iniciado preview de arrastar');
-  }
-  
-  function updateDragPreview(currentPos, startPos) {
-    if (dragPreviewMeshes.length === 0 || !startPos || !currentPos) return;
-    
-    // Calcular deslocamento em coordenadas de grade
-    const deltaX = Math.round(currentPos.x - startPos.x);
-    const deltaY = Math.round(currentPos.y - startPos.y);
-    const deltaZ = Math.round(currentPos.z - startPos.z);
-    
-    // Atualizar posição dos previews
-    dragPreviewMeshes.forEach(preview => {
-      const originalVoxel = preview.userData.originalVoxel;
-      const originalPos = originalVoxel.userData.originalPosition || originalVoxel.position;
-      
-      preview.position.set(
-        originalPos.x + deltaX,
-        originalPos.y + deltaY,
-        originalPos.z + deltaZ
-      );
-    });
-  }
-  
-  function finishDrag(finalPos, startPos) {
-    if (dragPreviewMeshes.length === 0 || !startPos || !finalPos) {
-      cancelDrag();
-      return;
-    }
-    
-    // Calcular movimento final
-    const deltaX = Math.round(finalPos.x - startPos.x);
-    const deltaY = Math.round(finalPos.y - startPos.y);
-    const deltaZ = Math.round(finalPos.z - startPos.z);
-    
-    // Verificar se é um movimento válido
-    if (deltaX === 0 && deltaY === 0 && deltaZ === 0) {
-      cancelDrag();
-      return;
-    }
-    
-    clearDragPreview();
-    
-    // Executar movimento real
-    moveVoxelsBy(deltaX, deltaY, deltaZ);
-    
-    console.log(`✅ Arrastar finalizado: (${deltaX}, ${deltaY}, ${deltaZ})`);
-  }
-  
-  function cancelDrag() {
-    clearDragPreview();
-    console.log('❌ Arrastar cancelado');
-  }
-  
-  function clearDragPreview() {
-    // Remover previews
-    dragPreviewMeshes.forEach(preview => {
-      scene.remove(preview);
-      
-      // Reexibir voxel original
-      const originalVoxel = preview.userData.originalVoxel;
-      if (originalVoxel) {
-        originalVoxel.visible = true;
-        if (originalVoxel.userData.selectionOutline) {
-          originalVoxel.userData.selectionOutline.visible = true;
-        }
-      }
-    });
-    
-    dragPreviewMeshes = [];
-    isDraggingWithMouse = false;
-  }
-
-  // =====================================================================
-  // SISTEMA DE PREVIEW DE ÁREA DURANTE CRIAÇÃO
-  // =====================================================================
-  
-  let areaPreviewBox = null;
-  
-  function createAreaPreview(startPos, endPos) {
-    clearAreaPreview();
-    
-    const minX = Math.min(startPos.x, endPos.x);
-    const maxX = Math.max(startPos.x, endPos.x);
-    const minY = Math.min(startPos.y, endPos.y);
-    const maxY = Math.max(startPos.y, endPos.y);
-    const minZ = Math.min(startPos.z, endPos.z);
-    const maxZ = Math.max(startPos.z, endPos.z);
-    
-    const width = maxX - minX + 1;
-    const height = maxY - minY + 1;
-    const depth = maxZ - minZ + 1;
-    
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    const centerZ = (minZ + maxZ) / 2;
-    
-    // Criar preview wireframe
-    const previewGeometry = new THREE.BoxGeometry(width, height, depth);
-    const previewMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffff00, // Amarelo para preview
-      wireframe: true,
-      transparent: true,
-      opacity: 0.6
-    });
-    
-    areaPreviewBox = new THREE.Mesh(previewGeometry, previewMaterial);
-    areaPreviewBox.position.set(centerX, centerY, centerZ);
-    areaPreviewBox.name = 'areaPreview';
-    
-    scene.add(areaPreviewBox);
-    
-    console.log(`📦 Preview: ${width}x${height}x${depth}`);
-  }
-  
-  function clearAreaPreview() {
-    if (areaPreviewBox) {
-      scene.remove(areaPreviewBox);
-      areaPreviewBox = null;
-    }
-  }
-  
   // =====================================================================
   // SISTEMA DE HANDLES VISUAIS PARA REDIMENSIONAMENTO DE ÁREA
   // =====================================================================
@@ -1535,94 +984,71 @@ function initEditor() {
     areaResizeHandles = [];
     areaDimensionLabels = [];
   }
+  // Funções de handle resize movidas para HybridInteractionSystem
   
-
+  // Implementações locais para compatibilidade (serão chamadas via callbacks)
+  let isDraggingHandle = false;
+  let draggedHandle = null;
+  let resizeStartPosition = null;
+  let originalAreaBounds = null;
   
   function startHandleResize(handle, mouseEvent) {
-    if (!selectedArea || !handle.userData.isResizeHandle) {
+    if (!areaFillSystem || !areaFillSystem.getSelectedArea() || !handle.userData.isResizeHandle) {
       console.log('❌ startHandleResize: Condições não atendidas');
       return;
     }
     
     console.log('🔧 INICIANDO REDIMENSIONAMENTO!');
-    console.log('Handle:', handle.userData);
-    console.log('Área atual:', selectedArea);
-    
     isDraggingHandle = true;
     draggedHandle = handle;
-    originalAreaBounds = { ...selectedArea };
+    originalAreaBounds = { ...areaFillSystem.getSelectedArea() };
     
     // Guardar posição inicial do mouse
     const intersect = getIntersection(mouseEvent);
     if (intersect) {
       resizeStartPosition = {
-        x: intersect.point.x,
-        y: intersect.point.y,
-        z: intersect.point.z,
-        mouseX: mouseEvent.clientX,
-        mouseY: mouseEvent.clientY
+        x: intersect.point.x, y: intersect.point.y, z: intersect.point.z,
+        mouseX: mouseEvent.clientX, mouseY: mouseEvent.clientY
       };
-      console.log('Posição inicial:', resizeStartPosition);
     }
     
-    // Desabilitar TODOS os controles APENAS durante o arrasto do handle
+    // Desabilitar controles e destacar handle
     controls.enabled = false;
     controls.enableRotate = false;
     controls.enablePan = false;
     controls.enableZoom = false;
     
-    // Destacar handle sendo arrastado
     handle.material.emissiveIntensity = 0.5;
     handle.scale.set(1.3, 1.3, 1.3);
     handle.material.color.setHex(0xffffff);
-    
-    // Mudar cursor para indicar redimensionamento
     canvas.style.cursor = handle.userData.handleType === 'corner' ? 'nw-resize' : 'ew-resize';
-    
-    console.log(`🔧 Redimensionamento iniciado - Tipo: ${handle.userData.handleType}`);
   }
   
   function updateHandleResize(mouseEvent) {
     if (!isDraggingHandle || !draggedHandle || !resizeStartPosition) return;
     
-    // Calcular movimento do mouse
     const deltaMouseX = mouseEvent.clientX - resizeStartPosition.mouseX;
     const deltaMouseY = mouseEvent.clientY - resizeStartPosition.mouseY;
-    
-    // Converter movimento do mouse em movimento 3D com sensibilidade melhorada
-    const sensitivity = 0.1; // Aumentar sensibilidade
+    const sensitivity = 0.1;
     const deltaX = deltaMouseX * sensitivity;
-    const deltaY = -deltaMouseY * sensitivity; // Inverter Y
-    const deltaZ = deltaMouseX * sensitivity * 0.7; // Z um pouco menos sensível
+    const deltaY = -deltaMouseY * sensitivity;
+    const deltaZ = deltaMouseX * sensitivity * 0.7;
     
     let newArea = { ...originalAreaBounds };
     const directions = draggedHandle.userData.directions;
     
-    // Aplicar mudanças baseado nas direções do handle
     directions.forEach(direction => {
       switch (direction) {
-        case '+x':
-          newArea.maxX = Math.max(originalAreaBounds.minX + 1, Math.round(originalAreaBounds.maxX + deltaX));
-          break;
-        case '-x':
-          newArea.minX = Math.min(originalAreaBounds.maxX - 1, Math.round(originalAreaBounds.minX + deltaX));
-          break;
-        case '+y':
-          newArea.maxY = Math.max(originalAreaBounds.minY + 1, Math.round(originalAreaBounds.maxY + deltaY));
-          break;
-        case '-y':
-          newArea.minY = Math.min(originalAreaBounds.maxY - 1, Math.round(originalAreaBounds.minY + deltaY));
-          break;
-        case '+z':
-          newArea.maxZ = Math.max(originalAreaBounds.minZ + 1, Math.round(originalAreaBounds.maxZ + deltaZ));
-          break;
-        case '-z':
-          newArea.minZ = Math.min(originalAreaBounds.maxZ - 1, Math.round(originalAreaBounds.minZ + deltaZ));
-          break;
+        case '+x': newArea.maxX = Math.max(originalAreaBounds.minX + 1, Math.round(originalAreaBounds.maxX + deltaX)); break;
+        case '-x': newArea.minX = Math.min(originalAreaBounds.maxX - 1, Math.round(originalAreaBounds.minX + deltaX)); break;
+        case '+y': newArea.maxY = Math.max(originalAreaBounds.minY + 1, Math.round(originalAreaBounds.maxY + deltaY)); break;
+        case '-y': newArea.minY = Math.min(originalAreaBounds.maxY - 1, Math.round(originalAreaBounds.minY + deltaY)); break;
+        case '+z': newArea.maxZ = Math.max(originalAreaBounds.minZ + 1, Math.round(originalAreaBounds.maxZ + deltaZ)); break;
+        case '-z': newArea.minZ = Math.min(originalAreaBounds.maxZ - 1, Math.round(originalAreaBounds.minZ + deltaZ)); break;
       }
     });
     
-    // Verificar limites mínimos (área deve ter pelo menos 1x1x1)
+    // Verificar limites mínimos
     if (newArea.minX >= newArea.maxX) {
       if (directions.includes('+x')) newArea.maxX = newArea.minX + 1;
       if (directions.includes('-x')) newArea.minX = newArea.maxX - 1;
@@ -1636,73 +1062,51 @@ function initEditor() {
       if (directions.includes('-z')) newArea.minZ = newArea.maxZ - 1;
     }
     
-    // Atualizar área temporariamente para preview
-    selectedArea = newArea;
-    showAreaSelection(selectedArea, true); // true = modo preview
+    areaFillSystem.selectedArea = newArea;
+    areaFillSystem.showAreaSelection(areaFillSystem.selectedArea, true);
+    areaFillSystem.createResizeHandles(areaFillSystem.selectedArea);
     
-    // Recriar handles com nova posição
-    createResizeHandles(selectedArea);
-    
-    // Restaurar estado do handle sendo arrastado
+    // Restaurar handle arrastado
     const newDraggedHandle = areaResizeHandles.find(h => 
       h.userData.handleType === draggedHandle.userData.handleType &&
       JSON.stringify(h.userData.directions) === JSON.stringify(draggedHandle.userData.directions)
     );
-    
     if (newDraggedHandle) {
       draggedHandle = newDraggedHandle;
       draggedHandle.material.emissiveIntensity = 0.5;
       draggedHandle.scale.set(1.3, 1.3, 1.3);
     }
-    
-    console.log(`🔄 Redimensionando: ${JSON.stringify(newArea)}`);
   }
   
   function finishHandleResize() {
-    if (!isDraggingHandle || !draggedHandle) {
-      console.log('❌ finishHandleResize: Não estava redimensionando');
-      return;
-    }
+    if (!isDraggingHandle || !draggedHandle) return;
     
-    console.log('✅ FINALIZANDO REDIMENSIONAMENTO');
-    console.log('Nova área:', selectedArea);
+    const addedVoxels = areaFillSystem.fillAreaWithVoxels(areaFillSystem.selectedArea);
+    areaFillSystem.removeVoxelsOutsideArea(originalAreaBounds, areaFillSystem.selectedArea);
     
-    // Preencher área com voxels se necessário
-    const addedVoxels = fillAreaWithVoxels(selectedArea);
-    
-    // Remover voxels que ficaram fora da nova área
-    removeVoxelsOutsideArea(originalAreaBounds, selectedArea);
-    
-    // Restaurar aparência do handle
     draggedHandle.material.emissiveIntensity = 0.2;
     draggedHandle.scale.set(1, 1, 1);
     draggedHandle.material.color.setHex(draggedHandle.userData.originalColor);
-    
-    // Restaurar cursor
     canvas.style.cursor = 'default';
     
-    // Restaurar TODOS os controles após redimensionamento
     controls.enabled = true;
     controls.enableRotate = true;
     controls.enablePan = true;
     controls.enableZoom = true;
     
-    // Reset variáveis
     isDraggingHandle = false;
     draggedHandle = null;
     resizeStartPosition = null;
     originalAreaBounds = null;
     
-    // Atualizar visualização final
-    showAreaSelection(selectedArea);
-    createResizeHandles(selectedArea);
-    
+    areaFillSystem.showAreaSelection(areaFillSystem.selectedArea);
+    areaFillSystem.createResizeHandles(areaFillSystem.selectedArea);
     saveState();
-    
-    console.log(`✅ Redimensionamento concluído! Voxels adicionados: ${addedVoxels}`);
+    console.log(`✅ Redimensionamento concluído! Voxels: ${addedVoxels}`);
   }
 
-  function handleArrowClick(arrow, isShiftHeld = false) {
+  // Função handleArrowClick removida - funcionalidade migrada para areaFillSystem
+  function handleArrowClick_DEPRECATED(arrow, isShiftHeld = false) {
     if (!selectedArea || !arrow.userData.isExpansionArrow) return;
     
     const direction = arrow.userData.direction;
@@ -1799,7 +1203,8 @@ function initEditor() {
     }
   }
   
-  function removeVoxelsOutsideArea(oldArea, newArea) {
+  // Função removeVoxelsOutsideArea removida - funcionalidade migrada para areaFillSystem
+  function removeVoxelsOutsideArea_DEPRECATED(oldArea, newArea) {
     const voxelsToRemove = [];
     
     voxels.forEach(voxel => {
@@ -1833,289 +1238,6 @@ function initEditor() {
     }
   }
 
-  // =====================================================================
-  // SISTEMA DE SELEÇÃO E MOVIMENTAÇÃO DE VOXELS
-  // =====================================================================
-  
-  // Variáveis para sistema de seleção e movimentação
-  let selectedVoxels = new Set();
-  let isDraggingVoxels = false;
-  let dragStartPosition = null;
-  let voxelPreviewMeshes = [];
-  let isInMoveMode = false;
-  
-  function toggleVoxelSelection(voxel, selectionMode = 'single') {
-    switch (selectionMode) {
-      case 'single':
-        toggleSingleVoxel(voxel);
-        break;
-      case 'color':
-        selectByColor(voxel);
-        break;
-      case 'connected':
-        selectConnected(voxel);
-        break;
-    }
-    
-    updateCursor();
-    updateSelectionInfo();
-  }
-  
-  function toggleSingleVoxel(voxel) {
-    if (selectedVoxels.has(voxel)) {
-      selectedVoxels.delete(voxel);
-      removeSelectionHighlight(voxel);
-      console.log(`➖ Voxel desselecionado. Total: ${selectedVoxels.size}`);
-    } else {
-      selectedVoxels.add(voxel);
-      addSelectionHighlight(voxel);
-      console.log(`➕ Voxel selecionado. Total: ${selectedVoxels.size}`);
-    }
-  }
-  
-  function selectByColor(clickedVoxel) {
-    const targetColor = clickedVoxel.userData.color;
-    let addedCount = 0;
-    
-    // Primeiro, limpar seleção anterior
-    clearSelection();
-    
-    voxels.forEach(voxel => {
-      if (voxel.userData.color === targetColor) {
-        selectedVoxels.add(voxel);
-        addSelectionHighlight(voxel);
-        addedCount++;
-      }
-    });
-    
-    console.log(`� Selecionados ${addedCount} voxels pela cor ${targetColor}`);
-  }
-  
-  function selectConnected(startVoxel) {
-    const connectedVoxels = findConnectedVoxels(startVoxel);
-    let addedCount = 0;
-    
-    // Primeiro, limpar seleção anterior
-    clearSelection();
-    
-    connectedVoxels.forEach(voxel => {
-      selectedVoxels.add(voxel);
-      addSelectionHighlight(voxel);
-      addedCount++;
-    });
-    
-    console.log(`🔗 Selecionados ${addedCount} voxels conectados`);
-  }
-  
-  function findConnectedVoxels(startVoxel) {
-    console.log('🔍 Iniciando busca de voxels conectados a partir de:', startVoxel.position);
-    const connected = new Set();
-    const toCheck = [startVoxel];
-    
-    while (toCheck.length > 0) {
-      const current = toCheck.pop();
-      if (connected.has(current)) continue;
-      
-      connected.add(current);
-      console.log('➕ Adicionado voxel conectado na posição:', current.position);
-      
-      // Procurar voxels adjacentes (6 direções)
-      const neighbors = findAdjacentVoxels(current);
-      console.log(`🔍 Encontrados ${neighbors.length} vizinhos adjacentes`);
-      neighbors.forEach(neighbor => {
-        if (!connected.has(neighbor)) {
-          toCheck.push(neighbor);
-        }
-      });
-    }
-    
-    console.log(`✅ Total de voxels conectados encontrados: ${connected.size}`);
-    return Array.from(connected);
-  }
-  
-  function findAdjacentVoxels(voxel) {
-    const adjacent = [];
-    const pos = voxel.position;
-    
-    // 6 direções adjacentes
-    const directions = [
-      { x: 1, y: 0, z: 0 },
-      { x: -1, y: 0, z: 0 },
-      { x: 0, y: 1, z: 0 },
-      { x: 0, y: -1, z: 0 },
-      { x: 0, y: 0, z: 1 },
-      { x: 0, y: 0, z: -1 }
-    ];
-    
-    directions.forEach(dir => {
-      const checkPos = {
-        x: Math.round(pos.x + dir.x),
-        y: Math.round(pos.y + dir.y),
-        z: Math.round(pos.z + dir.z)
-      };
-      
-      const neighbor = voxels.find(v => 
-        Math.round(v.position.x) === checkPos.x &&
-        Math.round(v.position.y) === checkPos.y &&
-        Math.round(v.position.z) === checkPos.z
-      );
-      
-      if (neighbor) {
-        adjacent.push(neighbor);
-      }
-    });
-    
-    return adjacent;
-  }
-  
-  function addSelectionHighlight(voxel) {
-    // Criar outline brilhante e otimizado para voxel selecionado
-    const outlineGeometry = new THREE.BoxGeometry(1.15, 1.15, 1.15);
-    const outlineMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00ffff,
-      transparent: true,
-      opacity: 0.8,
-      wireframe: true,
-      wireframeLinewidth: 3
-    });
-
-    const outline = new THREE.Mesh(outlineGeometry, outlineMaterial);
-    outline.position.copy(voxel.position);
-    outline.userData.isSelectionOutline = true;
-    outline.userData.parentVoxel = voxel;
-
-    scene.add(outline);
-    voxel.userData.selectionOutline = outline;
-
-    console.log('✨ Gizmo de seleção otimizado criado');
-   }
-  
-  function removeSelectionHighlight(voxel) {
-    if (voxel.userData.selectionOutline) {
-      scene.remove(voxel.userData.selectionOutline);
-      delete voxel.userData.selectionOutline;
-    }
-  }
-  
-  function clearSelection() {
-    selectedVoxels.forEach(voxel => {
-      removeSelectionHighlight(voxel);
-    });
-    selectedVoxels.clear();
-    updateSelectionInfo();
-    console.log('🔄 Seleção limpa');
-  }
-  
-  function updateSelectionInfo() {
-    if (selectedVoxels.size > 0) {
-      console.log(`🎯 ${selectedVoxels.size} voxels selecionados`);
-    }
-  }
-  
-  function deleteSelectedVoxels() {
-    if (selectedVoxels.size === 0) return;
-    
-    const toDelete = Array.from(selectedVoxels);
-    toDelete.forEach(voxel => {
-      removeSelectionHighlight(voxel);
-      removeVoxel(voxel);
-    });
-    selectedVoxels.clear();
-    
-    console.log(`🗑️ ${toDelete.length} voxels deletados`);
-  }
-  
-  function selectAllVoxels() {
-    clearSelection();
-    voxels.forEach(voxel => {
-      selectedVoxels.add(voxel);
-      addSelectionHighlight(voxel);
-    });
-    updateSelectionInfo();
-    console.log(`🎨 Todos os voxels selecionados (${voxels.length})`);
-  }
-  
-  function moveSelectedVoxels(direction) {
-    if (selectedVoxels.size === 0) return;
-    
-    let deltaX = 0, deltaY = 0, deltaZ = 0;
-    
-    switch(direction) {
-      case 'ArrowUp':
-        deltaZ = -1; // Para frente
-        break;
-      case 'ArrowDown':
-        deltaZ = 1; // Para trás
-        break;
-      case 'ArrowRight':
-        deltaX = 1; // Para direita
-        break;
-      case 'ArrowLeft':
-        deltaX = -1; // Para esquerda
-        break;
-      case 'KeyW': // W para cima
-        deltaY = 1;
-        break;
-      case 'KeyS': // S para baixo
-        deltaY = -1;
-        break;
-      case 'PageUp': // Manter compatibilidade
-        deltaY = 1; // Para cima
-        break;
-      case 'PageDown': // Manter compatibilidade
-        deltaY = -1; // Para baixo
-        break;
-    }
-    
-    moveVoxelsBy(deltaX, deltaY, deltaZ);
-  }
-  
-  function moveVoxelsBy(deltaX, deltaY, deltaZ) {
-    // Verificar se todas as novas posições estão livres
-    const newPositions = [];
-    const canMove = Array.from(selectedVoxels).every(voxel => {
-      const newPos = {
-        x: Math.round(voxel.position.x + deltaX),
-        y: Math.round(voxel.position.y + deltaY),
-        z: Math.round(voxel.position.z + deltaZ)
-      };
-      
-      // Verificar se não há colisão com voxel não selecionado
-      const collision = voxels.find(v => {
-        if (selectedVoxels.has(v)) return false; // Ignorar voxels selecionados
-        return Math.round(v.position.x) === newPos.x && 
-               Math.round(v.position.y) === newPos.y && 
-               Math.round(v.position.z) === newPos.z;
-      });
-      
-      newPositions.push({ voxel, newPos });
-      return !collision;
-    });
-    
-    if (canMove) {
-      // Mover todos os voxels
-      newPositions.forEach(({ voxel, newPos }) => {
-        voxel.position.set(newPos.x, newPos.y, newPos.z);
-        voxel.userData.originalPosition = newPos;
-        
-        // Mover outline de seleção também
-        if (voxel.userData.selectionOutline) {
-          voxel.userData.selectionOutline.position.copy(voxel.position);
-        }
-      });
-      
-      saveState();
-      const direction = deltaX !== 0 ? (deltaX > 0 ? 'direita' : 'esquerda') :
-                       deltaY !== 0 ? (deltaY > 0 ? 'cima' : 'baixo') :
-                       deltaZ !== 0 ? (deltaZ > 0 ? 'trás' : 'frente') : '';
-      console.log(`🔄 ${selectedVoxels.size} voxels movidos para ${direction}`);
-    } else {
-      console.log('❌ Movimento bloqueado - colisão detectada');
-    }
-  }
-
-  // Salvar estado inicial
-  saveState();
 
   // =====================================================================
   // EXPOR FUNÇÕES PARA O SISTEMA DE CAMINHADA
@@ -2127,6 +1249,8 @@ function initEditor() {
   window.saveState = saveState;
   window.voxels = voxels;
   window.colorSystem = colorSystem;
+  window.voxelSelectionSystem = voxelSelectionSystem;
+  window.areaFillSystem = areaFillSystem;
 
     // Funções do editor expostas globalmente  // =====================================================================
   // INICIALIZAÇÃO DO SISTEMA DE MODO SALA AMBIENTE
@@ -2213,364 +1337,54 @@ function initEditor() {
 
   if (exportBtn) {
     exportBtn.onclick = function () {
-      const voxelData = collectSceneData();
-      
-      // Mostrar opções de exportação
-      const exportType = prompt('Escolha o formato de exportação:\\n1 - HTML (visualizador completo)\\n2 - JSON (apenas dados)\\n\\nDigite 1 ou 2:', '1');
-      
-      if (exportType === '1') {
-        // Exportar como HTML
-        const html = generateExportHTML(voxelData);
-        downloadHTMLFile(html, 'sua-arte-voxel.html');
-      } else if (exportType === '2') {
-        // Exportar como JSON
-        const jsonData = JSON.stringify(voxelData, null, 2);
-        downloadJSONFile(jsonData, 'voxel-data.json');
-      } else if (exportType !== null) {
-        alert('Opção inválida. Use 1 para HTML ou 2 para JSON.');
+      if (exportSystem) {
+        exportSystem.export();
+      } else {
+        console.error('❌ Sistema de exportação não está disponível');
+        alert('Erro: Sistema de exportação não está disponível');
       }
     };
   }
 
-  function collectSceneData() {
-    return voxels.map(voxel => ({
-      x: Math.round(voxel.position.x),
-      y: Math.round(voxel.position.y), 
-      z: Math.round(voxel.position.z),
-      color: voxel.userData.color
-    }));
-  }
 
-  function generateExportHTML(voxelData) {
-    return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🎨 Arte Voxel 3D - Criado com Vertex</title>
-  <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAAsTAAALEwEAmpwYAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMy1jMDExIDY2LjE0NTY2MSwgMjAxMi8wMi8wNi0xNDo1NjoyNyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNiAoV2luZG93cykiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6OUJGMTY3MkY0RUU2MTFFQ0I5OTlBQjVBMTFFNjA4NEMiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6OUJGMTY3MzA0RUU2MTFFQ0I5OTlBQjVBMTFFNjA4NEMiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDo5QkYxNjcyRDRFRTYxMUVDQjk5OUFCNUE0tEU2MDg0QyIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDo5QkYxNjcyRTRFRTYxMUVDQjk5OUFCNUE0tEU2MDg0QyIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PtKh8TcAAAASSURBVHjaYvz//z8DJQAggAADAKJQAv5TIQq5AAAAAElFTkSuQmCC">
-  <style>
-    body { 
-      margin: 0; 
-      background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%);
-      overflow: hidden;
-      font-family: 'Arial', sans-serif;
-    }
-    canvas { 
-      display: block; 
-      width: 100vw; 
-      height: 100vh; 
-    }
-    #info {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      color: #FFD700;
-      background: rgba(0,0,0,0.8);
-      padding: 15px 20px;
-      border-radius: 10px;
-      font-size: 14px;
-      border: 1px solid rgba(255, 215, 0, 0.3);
-      backdrop-filter: blur(10px);
-    }
-    #controls {
-      position: absolute;
-      bottom: 20px;
-      color: #ccc;
-      background: rgba(0,0,0,0.7);
-      padding: 10px 15px;
-      border-radius: 8px;
-      font-size: 12px;
-    }
-    #loading {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: #FFD700;
-      font-size: 20px;
-      background: rgba(0,0,0,0.9);
-      padding: 30px;
-      border-radius: 15px;
-      text-align: center;
-      border: 1px solid rgba(255, 215, 0, 0.3);
-    }
-    .spinner {
-      border: 3px solid rgba(255, 215, 0, 0.3);
-      border-radius: 50%;
-      border-top: 3px solid #FFD700;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin: 10px auto;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    .error {
-      background: rgba(255, 68, 68, 0.1);
-      border: 1px solid rgba(255, 68, 68, 0.3);
-      color: #ff4444;
-    }
-  </style>
-</head>
-<body>
-  <div id="loading">
-    <div class="spinner"></div>
-    🎨 Carregando sua arte voxel...<br>
-    <small>Inicializando visualizador 3D</small>
-  </div>
-  <canvas id="three-canvas" style="display: none;"></canvas>
-  <div id="info" style="display: none;">
-    <div><strong>🎨 Arte Voxel 3D</strong></div>
-    <div>Voxels: <span id="voxel-count">${voxelData.length}</span></div>
-    <div style="color: #7c3aed; font-weight: bold;">Criado com ◼ Vertex</div>
-  </div>
-  <div id="controls" style="display: none;">
-    <div><strong>Controles:</strong></div>
-    <div>🖱️ Arrastar: Rotacionar</div>
-    <div>🔍 Scroll: Zoom</div>
-    <div>🖱️ Shift + Arrastar: Mover</div>
-  </div>
-  
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.155.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.155.0/examples/jsm/"
-      }
-    }
-  </script>
-  
-  <script type="module">
-    // Dados dos voxels
-    const voxelData = ${JSON.stringify(voxelData, null, 4)};
-    
-    // Função para mostrar erro
-    function showError(message) {
-      const loading = document.getElementById('loading');
-      loading.className = 'error';
-      loading.innerHTML = \`
-        ❌ Erro ao carregar<br>
-        <small>\${message}</small><br><br>
-        💡 Dica: Verifique sua conexão com a internet
-      \`;
-    }
-    
-    // Função para esconder loading
-    function hideLoading() {
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('three-canvas').style.display = 'block';
-      document.getElementById('info').style.display = 'block';
-      document.getElementById('controls').style.display = 'block';
-    }
-    
-    // Inicialização
-    async function init() {
-      try {
-        // Importar Three.js e OrbitControls
-        const THREE = await import('three');
-        const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
-        
-        // Simular carregamento para melhor UX
-        setTimeout(hideLoading, 800);
-        
-        // Configurar Three.js
-        const canvas = document.getElementById('three-canvas');
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0a0a0a);
-        
-        // Configurar câmera
-        const size = 20;
-        const aspect = window.innerWidth / window.innerHeight;
-        const camera = new THREE.OrthographicCamera(
-          -size * aspect, size * aspect, 
-          size, -size, 
-          0.1, 1000
-        );
-        
-        // Posicionar câmera
-        const angleY = Math.PI / 4;
-        const angleX = Math.PI / 6; 
-        const distance = 28;
-        camera.position.set(
-          distance * Math.sin(angleY) * Math.cos(angleX),
-          distance * Math.sin(angleX),
-          distance * Math.cos(angleY) * Math.cos(angleX)
-        );
-        camera.lookAt(0, 0, 0);
-        
-        // Configurar renderer
-        const renderer = new THREE.WebGLRenderer({ 
-          canvas, 
-          antialias: true,
-          alpha: true
-        });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        
-        // Redimensionamento
-        window.addEventListener('resize', () => {
-          const newAspect = window.innerWidth / window.innerHeight;
-          camera.left = -size * newAspect;
-          camera.right = size * newAspect;
-          camera.updateProjectionMatrix();
-          renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-        
-        // Iluminação
-        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(10, 20, 10);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        scene.add(directionalLight);
-        
-        // Controles
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.enablePan = true;
-        controls.minZoom = 0.3;
-        controls.maxZoom = 3;
-        
-        // Grade
-        const gridHelper = new THREE.GridHelper(40, 40, 0x444444, 0x222222);
-        gridHelper.position.y = -0.5;
-        scene.add(gridHelper);
-        
-        // Criar voxels
-        const voxelGroup = new THREE.Group();
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
-        
-        voxelData.forEach(voxel => {
-          const material = new THREE.MeshLambertMaterial({ 
-            color: voxel.color,
-          });
-          const mesh = new THREE.Mesh(geometry, material);
-          mesh.position.set(voxel.x, voxel.y, voxel.z);
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          voxelGroup.add(mesh);
-        });
-        
-        scene.add(voxelGroup);
-        
-        // Loop de animação
-        function animate() {
-          requestAnimationFrame(animate);
-          controls.update();
-          renderer.render(scene, camera);
-        }
-        animate();
-        
-        console.log('🎨 Arte voxel carregada com sucesso!');
-        console.log('Total de voxels:', voxelData.length);
-        
-      } catch (error) {
-        console.error('❌ Erro ao carregar:', error);
-        showError(error.message || 'Erro desconhecido');
-      }
-    }
-    
-    // Inicializar quando a página carregar
-    init();
-  </script>
-</body>
-</html>`;
-  }
-
-  function downloadHTMLFile(htmlContent, filename) {
-    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    
-    const downloadLink = document.createElement('a');
-    downloadLink.href = url;
-    downloadLink.download = filename;
-    
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    
-    setTimeout(() => {
-      document.body.removeChild(downloadLink);
-      URL.revokeObjectURL(url);
-    }, 100);
-  }
-
-  function downloadJSONFile(jsonContent, filename) {
-    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    
-    const downloadLink = document.createElement('a');
-    downloadLink.href = url;
-    downloadLink.download = filename;
-    
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    
-    setTimeout(() => {
-      document.body.removeChild(downloadLink);
-      URL.revokeObjectURL(url);
-    }, 100);
-  }
-
-  // =====================================================================
-  // FUNCIONALIDADE DE IMPORTAÇÃO
-  // =====================================================================
-
-  
-
-  
-
-  
-
-  // Editor inicializado
 
   // =====================================================================
   // SISTEMA DE INTERAÇÃO CLIQUE/ARRASTO MELHORADO PARA TRACKPAD
   // =====================================================================
 
-  let isMouseDown = false;
-  let isDragging = false;
-  let mouseDownTime = 0;
-  let mouseDownPosition = { x: 0, y: 0 };
-  let lastTouchTime = 0;
-  let touchCount = 0;
   
-  const DRAG_THRESHOLD = 8; // Aumentado para trackpad
-  const CLICK_TIME_THRESHOLD = 300; // Aumentado para trackpad
-  const DOUBLE_CLICK_TIME = 500; // Tempo para double-click
+  // Variáveis do sistema de área (gerenciadas pelo HybridInteractionSystem)
+  // Sistema de preenchimento em área - estado agora no HybridInteractionSystem
+
+  // =====================================================================
+  // FUNÇÃO PARA ATUALIZAR CURSOR
+  // =====================================================================
+
+  function updateCursor() {
+    // Obter estado atual do sistema de interação híbrida
+    const interactionState = window.hybridInteractionSystem ? window.hybridInteractionSystem.getState() : {};
+    
+    if (interactionState.isCreatingArea || interactionState.isAreaDragging) {
+      canvas.style.cursor = 'copy'; // Cursor para criação de área
+    } else if (interactionState.isInMoveMode && voxelSelectionSystem && voxelSelectionSystem.hasSelection()) {
+      canvas.style.cursor = 'grab';
+    } else if (interactionState.isDragging && interactionState.isShiftPressed && controls.mouseButtons.LEFT === THREE.MOUSE.PAN) {
+      canvas.style.cursor = 'move'; // Cursor para pan da câmera
+    } else if (interactionState.isCtrlPressed) {
+      canvas.style.cursor = 'copy'; // Cursor de cópia para criação de área
+    } else if (interactionState.isShiftPressed) {
+      canvas.style.cursor = 'crosshair';
+    } else if (areaFillSystem && areaFillSystem.hasAreaSelected()) {
+      canvas.style.cursor = 'move'; // Cursor para expandir área
+    } else {
+      // Cursor normal quando nenhum modificador está ativo
+      canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"34\" height=\"34\" viewBox=\"0 0 34 34\" fill=\"none\"><defs><filter id=\"shadow\" x=\"-50%%\" y=\"-50%%\" width=\"200%%\" height=\"200%%\"><feDropShadow dx=\"2\" dy=\"2\" stdDeviation=\"2\" flood-color=\"rgba(0,0,0,0.8)\"/></filter></defs><path d=\"M6 6 C6 6 6.5 6 7 6.2 L25 16 C25.8 16.4 25.8 16.9 25 17.3 L16 19.5 C15.3 19.7 15 20.1 14.8 20.8 L12.8 28 C12.6 28.7 12 28.7 11.8 28 L6 8.5 C5.7 7.8 5.7 6.3 6 6 Z\" fill=\"black\" stroke=\"white\" stroke-width=\"2.2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" filter=\"url(%23shadow)\"/><path d=\"M8 9 L12 18 L16 20 L23 17.5\" stroke=\"rgba(255,255,255,0.3)\" stroke-width=\"1\" fill=\"none\" stroke-linecap=\"round\"/></svg>') 6 6, auto";
+    }
+  }
   
-  // Sistema de preenchimento em área
-  let isCtrlPressed = false;
-  let isShiftPressed = false;
-  let fillStartPos = null;
-  let fillEndPos = null;
-  let fillPreviewVoxels = [];
-  let selectedArea = null;
-  let isAreaSelected = false;
-  let isDoubleClicking = false;
-  
-  // Sistema de área expansível - variáveis declaradas no escopo correto
-  let isCreatingArea = false;
-  let areaCreationStartPos = null;
-  let lastClickTime = 0;
-  let isAreaDragging = false;
-  let areaBox = null;
-  
-  // Sistema de handles visuais para redimensionamento de área
+  // Sistema de handles visuais para redimensionamento de área (legado)
   let areaResizeHandles = [];
   let areaDimensionLabels = [];
-  let isInteractingWithHandle = false;
-  let isDraggingHandle = false;
-  let draggedHandle = null;
-  let resizeStartPosition = null;
-  let originalAreaBounds = null;
-  
-
   
   // Função para ajustar tamanho dos labels baseado no zoom da câmera
   function updateLabelSizes() {
@@ -2586,17 +1400,6 @@ function initEditor() {
       }
     });
   }
- 
-  
-  // Detectar se é trackpad/touchpad
-  let isTrackpad = false;
-  
-  // Configurações específicas para trackpad
-  controls.panSpeed = 0.8; // Reduzido para trackpad
-  controls.rotateSpeed = 0.5; // Reduzido para trackpad
-  controls.zoomSpeed = 0.6; // Reduzido para trackpad
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.15; // Aumentado para suavizar trackpad
 
   // Habilitar controles de câmera sempre
   controls.enabled = true;
@@ -2609,790 +1412,24 @@ function initEditor() {
     }
   });
 
-  // Configurar interação híbrida no canvas
-  function setupHybridInteraction() {
-    let mouseDownEvent = null;
-    
-    // Mostrar dica para trackpad
-    const trackpadHint = document.getElementById('trackpad-hint');
-    let hintTimeout;
-    
-    function showTrackpadHint() {
-      if (trackpadHint) {
-        trackpadHint.classList.add('visible');
-        clearTimeout(hintTimeout);
-        hintTimeout = setTimeout(() => {
-          trackpadHint.classList.remove('visible');
-        }, 4000);
-      }
-    }
+  // Inicializar sistema de interação híbrida
+  const hybridInteractionSystem = new HybridInteractionSystem(
+    canvas, camera, controls, colorSystem, areaFillSystem, voxelSelectionSystem, mouseSystem
+  );
+  window.hybridInteractionSystem = hybridInteractionSystem;
 
-    // Mostrar dica automaticamente ao carregar (para usuários com trackpad)
-    setTimeout(() => {
-      showTrackpadHint();
-    }, 2000); // Aparece após 2 segundos
-
-    // Detectar trackpad vs mouse tradicional
-    canvas.addEventListener('wheel', (e) => {
-      // Trackpads geralmente enviam valores menores e mais frequentes
-      if (Math.abs(e.deltaY) < 10 && e.deltaMode === 0) {
-        isTrackpad = true;
-        controls.zoomSpeed = 0.3; // Reduzir para trackpad
-        showTrackpadHint();
-        canvas.classList.add('trackpad-mode');
-      } else {
-        controls.zoomSpeed = 1.0; // Normal para mouse
-        canvas.classList.remove('trackpad-mode');
-      }
-    }, { passive: true });
-
-    canvas.addEventListener('mousedown', (event) => {
-      // Se eyedropper está ativo, não interferir
-      if (colorSystem.isEyedropperActivated()) return;
-      
-      isMouseDown = true;
-      isDragging = false;
-      mouseDownTime = Date.now();
-      mouseDownPosition.x = event.clientX;
-      mouseDownPosition.y = event.clientY;
-      mouseDownEvent = event;
-      
-      // Sistema de SELEÇÃO - Shift + clique (incluindo Ctrl + Shift para seleção por cor)
-      if (isShiftPressed) {
-        console.log('🎯 SHIFT + CLIQUE DETECTADO - MODO SELEÇÃO!');
-        event.preventDefault();
-        event.stopPropagation();
-        
-        isDoubleClicking = true;
-        isDragging = false; // Reset para detectar se vai virar arrastar
-        
-        // NÃO desabilitar controles ainda - vamos esperar para ver se é clique ou arrastar
-        
-        const intersect = getIntersection(event);
-        if (intersect && intersect.object && intersect.object.userData.isVoxel) {
-          // Guardar informações para seleção posterior (se for apenas clique)
-          mouseDownEvent.intersectedVoxel = intersect.object;
-          mouseDownEvent.hasVoxelIntersection = true;
-        } else {
-          mouseDownEvent.hasVoxelIntersection = false;
-        }
-        return;
-      }
-      
-      // SISTEMA DE REDIMENSIONAMENTO COM HANDLES - Detectar clique em handle
-      if (isAreaSelected && !isShiftPressed && !isCtrlPressed) {
-        const intersect = getIntersection(event);
-        console.log('🔍 Mousedown - isAreaSelected:', isAreaSelected, 'intersect:', intersect);
-        
-        if (intersect && intersect.object) {
-          console.log('🎯 Objeto detectado no clique:', intersect.object.userData);
-          console.log('🎯 É handle?', intersect.object.userData.isResizeHandle);
-        }
-        
-        console.log('📊 Handles disponíveis:', areaResizeHandles.length);
-        areaResizeHandles.forEach((handle, index) => {
-          console.log(`Handle ${index}:`, handle.userData, 'posição:', handle.position);
-        });
-        
-        if (intersect && intersect.object && intersect.object.userData.isResizeHandle) {
-          console.log('🎯 HANDLE CLICADO - INICIANDO REDIMENSIONAMENTO!', intersect.object.userData);
-          event.preventDefault();
-          event.stopPropagation();
-          
-          // Iniciar redimensionamento imediatamente
-          startHandleResize(intersect.object, event);
-          return;
-        } else {
-          console.log('❌ Nenhum handle detectado no clique');
-        }
-      }
-      
-      // SISTEMA DE CRIAÇÃO DE ÁREA - Ctrl + clique + arrastar (apenas Ctrl, sem Shift)
-      if (isCtrlPressed && !isShiftPressed) {
-        console.log('🎯 CTRL + CLIQUE - INICIANDO CRIAÇÃO DE ÁREA!');
-        event.preventDefault();
-        event.stopPropagation();
-        
-        isCreatingArea = true;
-        isAreaDragging = true;
-        isDoubleClicking = true;
-        
-        const intersect = getIntersection(event);
-        if (intersect) {
-          areaCreationStartPos = {
-            x: Math.round(intersect.point.x),
-            y: Math.round(intersect.point.y),
-            z: Math.round(intersect.point.z)
-          };
-          console.log('📍 Início da área:', areaCreationStartPos);
-        }
-        
-        // Desabilitar completamente os controles
-        controls.enabled = false;
-        controls.enableRotate = false;
-        controls.enablePan = false;
-        controls.enableZoom = false;
-        
-        return;
-      }
-      
-      // Comportamento normal - adicionar/remover voxel
-      // Verificar double-click apenas para clique esquerdo
-      if (event.button === 0 && Date.now() - lastTouchTime < DOUBLE_CLICK_TIME) {
-        handleDoubleClick(event);
-        return;
-      }
-      lastTouchTime = Date.now();
-      
-      // Para trackpad, desabilitar rotação temporariamente no clique
-      if (isTrackpad && event.button === 0) {
-        controls.enableRotate = false;
-      }
-    });
-
-    canvas.addEventListener('mousemove', (event) => {
-      if (!isMouseDown || colorSystem.isEyedropperActivated()) return;
-      
-      // Verificar hover nos handles de redimensionamento (apenas quando não está arrastando)
-      if (!isDragging && isAreaSelected && !isDraggingHandle) {
-        const intersect = getIntersection(event);
-        
-        console.log('🔍 Mousemove - isAreaSelected:', isAreaSelected, 'intersect:', intersect);
-        
-        if (intersect && intersect.object) {
-          console.log('🎯 Objeto detectado:', intersect.object.userData);
-        }
-        
-        // Reset de todos os handles para cor original
-        areaResizeHandles.forEach(handle => {
-          handle.material.color.setHex(handle.userData.originalColor);
-          handle.material.opacity = 0.8;
-          handle.material.emissiveIntensity = 0.2;
-          handle.scale.set(1, 1, 1);
-        });
-        
-        // Destacar handle sob o mouse
-        if (intersect && intersect.object && intersect.object.userData.isResizeHandle) {
-          console.log('🎯 HANDLE DETECTADO - DESTACANDO!');
-          intersect.object.material.color.setHex(0xffffff);
-          intersect.object.material.opacity = 1.0;
-          intersect.object.material.emissiveIntensity = 0.4;
-          intersect.object.scale.set(1.2, 1.2, 1.2);
-          canvas.style.cursor = intersect.object.userData.handleType === 'corner' ? 'nw-resize' : 'pointer';
-        } else if (!isShiftPressed && !isCtrlPressed) {
-          updateCursor();
-        }
-      }
-      
-      const deltaX = Math.abs(event.clientX - mouseDownPosition.x);
-      const deltaY = Math.abs(event.clientY - mouseDownPosition.y);
-      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-      
-      // Threshold adaptativo para trackpad
-      const threshold = isTrackpad ? DRAG_THRESHOLD * 1.5 : DRAG_THRESHOLD;
-      
-      // MODO DE CRIAÇÃO DE ÁREA - Ctrl + clique + arrastar ou Duplo-clique + arrastar
-      if (isCreatingArea && isAreaDragging && areaCreationStartPos) {
-        const intersect = getIntersection(event);
-        if (intersect) {
-          const currentPos = {
-            x: Math.round(intersect.point.x),
-            y: Math.round(intersect.point.y),
-            z: Math.round(intersect.point.z)
-          };
-          
-          // Mostrar preview da área sendo criada
-          createAreaPreview(areaCreationStartPos, currentPos);
-        }
-        return;
-      }
-      
-      // MODO DE REDIMENSIONAMENTO COM HANDLES - Arrastar handle para redimensionar
-      if (isDraggingHandle && draggedHandle) {
-        console.log('🔄 Atualizando redimensionamento...');
-        updateHandleResize(event);
-        return;
-      }
-      
-      // Modo de seleção com Shift - determinar se é clique ou arrastar
-      if (isShiftPressed && isDoubleClicking && !isCreatingArea) {
-        if (distance > threshold) {
-          // É um arrastar = ativar pan da câmera
-          console.log('📹 Shift + Arrastar = Movendo câmera');
-          isDragging = true;
-          isDoubleClicking = false; // Cancelar modo de seleção
-          
-          // Ativar pan da câmera
-          controls.enabled = true;
-          controls.enableRotate = false; // Desativar rotação
-          controls.enablePan = true;     // Ativar pan
-          controls.enableZoom = true;    // Manter zoom
-          
-          // Simular clique do botão direito para ativar pan
-          const rightClickEvent = new MouseEvent('mousedown', {
-            clientX: event.clientX,
-            clientY: event.clientY,
-            button: 2, // Botão direito
-            buttons: 4 // Máscara do botão direito
-          });
-          
-          // Temporariamente mapear botão esquerdo para pan
-          controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
-          
-          return;
-        } else {
-          // Ainda é um movimento pequeno, manter em modo de seleção
-          return;
-        }
-      }
-      
-      if (distance > threshold && !isDragging && !isShiftPressed && !isCreatingArea && !isCtrlPressed && !isDraggingHandle) {
-        isDragging = true;
-        // Sempre permitir rotação quando arrastar (exceto se arrastando handle)
-        controls.enableRotate = true;
-        controls.enablePan = true;
-        
-        // Mudar cursor para indicar modo de rotação
-        canvas.style.cursor = 'grabbing';
-        canvas.classList.add('trackpad-dragging');
-      }
-    });
-
-    canvas.addEventListener('mouseup', (event) => {
-      if (colorSystem.isEyedropperActivated()) return;
-      
-      // FINALIZAÇÃO DE REDIMENSIONAMENTO COM HANDLES
-      if (isDraggingHandle && draggedHandle) {
-        finishHandleResize();
-        return;
-      }
-      
-      const mouseUpTime = Date.now();
-      const timeDiff = mouseUpTime - mouseDownTime;
-      
-      // Threshold de tempo adaptativo para trackpad
-      const timeThreshold = isTrackpad ? CLICK_TIME_THRESHOLD * 1.5 : CLICK_TIME_THRESHOLD;
-      
-      // FINALIZAÇÃO DE CRIAÇÃO DE ÁREA
-      if (isCreatingArea && isAreaDragging && areaCreationStartPos) {
-        console.log('🎯 FINALIZANDO CRIAÇÃO DE ÁREA!');
-        
-        const intersect = getIntersection(event);
-        if (intersect) {
-          const endPos = {
-            x: Math.round(intersect.point.x),
-            y: Math.round(intersect.point.y),
-            z: Math.round(intersect.point.z)
-          };
-          
-          // Criar a área final
-          createAreaFromDrag(areaCreationStartPos, endPos);
-        }
-        
-        // Reset flags
-        isCreatingArea = false;
-        isAreaDragging = false;
-        isDoubleClicking = false;
-        areaCreationStartPos = null;
-        clearAreaPreview();
-        
-        // Manter todos os controles habilitados em modo de área
-        controls.enabled = true;
-        controls.enableRotate = true;
-        controls.enablePan = true;
-        controls.enableZoom = true;
-        
-        isMouseDown = false;
-        isDragging = false;
-        updateCursor(); // Atualizar cursor para modo de área
-        return;
-      }
-      
-      // Modo de seleção com Shift
-      if (isShiftPressed && isDoubleClicking && !isCreatingArea) {
-        // Foi um clique (não arrastar) = fazer seleção
-        console.log('👆 Shift + Clique = Seleção de voxel');
-        
-        if (mouseDownEvent.hasVoxelIntersection && mouseDownEvent.intersectedVoxel) {
-          // Debug: verificar teclas pressionadas
-          console.log('🔍 Debug teclas:', {
-            ctrl: event.ctrlKey,
-            shift: event.shiftKey,
-            alt: event.altKey,
-            isShiftPressed: isShiftPressed,
-            isCtrlPressed: isCtrlPressed
-          });
-          
-          // Determinar modo de seleção baseado nas teclas modificadoras
-          let selectionMode = 'single';
-          if (event.ctrlKey && event.shiftKey) {
-            selectionMode = 'color';
-            console.log('🎨 Modo seleção por cor ativado (Ctrl+Shift+Clique)');
-          } else if (event.altKey && event.shiftKey) {
-            selectionMode = 'connected';
-            console.log('🔗 Modo seleção conectada ativado (Alt+Shift+Clique)');
-          } else if (event.shiftKey) {
-            selectionMode = 'single';
-            console.log('👆 Modo seleção individual ativado (Shift+Clique)');
-          }
-          
-          console.log('🎯 Modo de seleção determinado:', selectionMode);
-          
-          // Fazer a seleção
-          toggleVoxelSelection(mouseDownEvent.intersectedVoxel, selectionMode);
-        } else {
-          // Clicou no vazio = limpar seleção
-          clearSelection();
-        }
-        
-        isDoubleClicking = false;
-        
-        // Reabilitar todos os controles
-        controls.enabled = true;
-        controls.enableRotate = true;
-        controls.enablePan = true;
-        controls.enableZoom = true;
-        
-        console.log('✅ Seleção finalizada!');
-        
-        // Reset
-        isMouseDown = false;
-        isDragging = false;
-        return;
-      }
-      
-      // Se estava em modo pan da câmera com Shift
-      if (isShiftPressed && isDragging && controls.mouseButtons.LEFT === THREE.MOUSE.PAN) {
-        // Restaurar botão esquerdo para rotação
-        controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-        
-        // Restaurar todos os controles
-        controls.enabled = true;
-        controls.enableRotate = true;
-        controls.enablePan = true;
-        controls.enableZoom = true;
-        
-        console.log('📹 Pan da câmera finalizado');
-        
-        // Reset
-        isMouseDown = false;
-        isDragging = false;
-        return;
-      }
-      
-      if (!isDragging && timeDiff < timeThreshold && mouseDownEvent) {
-        // Se não estava em modo especial, fazer clique normal
-        if (!isShiftPressed && !isCreatingArea && !isDraggingHandle) {
-          // Foi um clique rápido normal - adicionar voxel
-          mouseSystem.onMouseDown(mouseDownEvent);
-        }
-      }
-      
-      // Reset
-      isMouseDown = false;
-      isDragging = false;
-      isDoubleClicking = false;
-      
-      // Reabilitar todos os controles quando não há modificação especial
-      if (!isShiftPressed && !isCtrlPressed) {
-        controls.enabled = true;
-        controls.enableRotate = true;
-        controls.enablePan = true;
-        controls.enableZoom = true;
-      }
-      
-      canvas.classList.remove('trackpad-dragging');
-      updateCursor(); // Sempre atualizar cursor no final
-    });
-
-    // Suporte a touch para dispositivos híbridos
-    canvas.addEventListener('touchstart', (event) => {
-      event.preventDefault();
-      
-      if (event.touches.length === 1) {
-        // Um dedo - simular clique
-        const touch = event.touches[0];
-        const mouseEvent = new MouseEvent('mousedown', {
-          clientX: touch.clientX,
-          clientY: touch.clientY,
-          button: 0
-        });
-        canvas.dispatchEvent(mouseEvent);
-      } else if (event.touches.length === 2) {
-        // Dois dedos - habilitar controles para gesture
-        controls.enabled = true;
-        isDragging = true;
-      }
-    }, { passive: false });
-
-    canvas.addEventListener('touchmove', (event) => {
-      event.preventDefault();
-      
-      if (event.touches.length === 1 && isMouseDown) {
-        const touch = event.touches[0];
-        const mouseEvent = new MouseEvent('mousemove', {
-          clientX: touch.clientX,
-          clientY: touch.clientY,
-          button: 0
-        });
-        canvas.dispatchEvent(mouseEvent);
-      }
-    }, { passive: false });
-
-    canvas.addEventListener('touchend', (event) => {
-      event.preventDefault();
-      
-      if (event.changedTouches.length === 1) {
-        const touch = event.changedTouches[0];
-        const mouseEvent = new MouseEvent('mouseup', {
-          clientX: touch.clientX,
-          clientY: touch.clientY,
-          button: 0
-        });
-        canvas.dispatchEvent(mouseEvent);
-      }
-      
-      // Reset após um delay para permitir gesture completion
-      setTimeout(() => {
-        controls.enabled = true;
-        controls.enableRotate = true;
-      }, 100);
-    }, { passive: false });
-
-    // Melhorar detecção de clique duplo para trackpad
-    function handleDoubleClick(event) {
-      // Só processar se for clique esquerdo (não direito)
-      if (event.button !== 0) return;
-      
-      const intersect = getIntersection(event);
-      if (intersect && intersect.object && intersect.object.userData.isVoxel) {
-        // Double-click para remover voxel
-        console.log('🖱️ Double-click: removendo voxel');
-        removeVoxel(intersect.object);
-      }
-    }
-
-    // Prevenir menu de contexto e melhorar clique direito
-    canvas.addEventListener('contextmenu', (event) => {
-      event.preventDefault();
-      
-      // Clique direito para remover voxel (melhor para trackpad)
-      const intersect = getIntersection(event);
-      if (intersect && intersect.object && intersect.object.userData.isVoxel) {
-        console.log('🖱️ Clique direito: removendo voxel');
-        removeVoxel(intersect.object);
-      }
-    });
-
-    // Sistema híbrido configurado
-  }
-
-  setupHybridInteraction();
-
-  // =====================================================================
-  // SISTEMA DE HISTÓRICO DE UPLOADS
-  // =====================================================================
-
-  // Elementos do sidebar de histórico
-  const uploadHistorySidebar = document.getElementById('upload-history-sidebar');
-  const uploadHistoryBtn = document.getElementById('uploadHistoryBtn');
-  const uploadHistoryClose = document.getElementById('uploadHistorySidebarCloseBtn');
-  const uploadHistoryContent = document.getElementById('uploadHistoryList');
-
-  // Array para armazenar histórico de uploads
-  let uploadHistory = [];
-
-  // Função para abrir o sidebar de histórico
-  function openUploadHistorySidebar() {
-    if (uploadHistorySidebar) {
-      uploadHistorySidebar.classList.add('show');
-      console.log('📂 Sidebar de histórico de uploads aberto');
-    }
-  }
-
-  // Função centralizada para atualizar posição do toolbar
-  function updateToolbarPosition() {
-    if (!iconToolbar) return;
-    
-    // Prioridade: Sidebar > Left Panel > Posição padrão
-    if (uploadHistorySidebar && uploadHistorySidebar.classList.contains('show')) {
-      // Sidebar aberto: mover barra para a direita do sidebar
-      iconToolbar.style.left = '365px';
-    } else if (leftPanel && leftPanel.classList.contains('show')) {
-      // Painel esquerdo aberto: mover barra para a direita do painel
-      iconToolbar.style.left = '345px';
-    } else {
-      // Posição padrão
-      iconToolbar.style.left = '10px';
-    }
-  }
-  
-  // Expor função globalmente para uso pelo roomMode.js
-  window.updateToolbarPosition = updateToolbarPosition;
-
-  // Função para fechar o sidebar de histórico
-  function closeUploadHistorySidebar() {
-    if (uploadHistorySidebar) {
-      uploadHistorySidebar.classList.remove('show');
-      console.log('📂 Sidebar de histórico de uploads fechado');
-
-      // Atualizar posição da barra de ferramentas considerando todos os estados
-      updateToolbarPosition();
-    }
-  }
-
-  // Função para adicionar arquivo ao histórico
-  function addToUploadHistory(voxelData, filename, type = 'voxel') {
-    const uploadItem = {
-      id: Date.now(),
-      filename: filename,
-      type: type,
-      voxelCount: voxelData.length,
-      timestamp: new Date(),
-      data: voxelData
-    };
-
-    uploadHistory.unshift(uploadItem); // Adicionar no início
-
-    // Limitar histórico a 20 itens
-    if (uploadHistory.length > 20) {
-      uploadHistory = uploadHistory.slice(0, 20);
-    }
-
-    updateUploadHistoryDisplay();
-    console.log(`📝 Arquivo "${filename}" adicionado ao histórico (${voxelData.length} voxels)`);
-  }
-
-  // Função para renderizar uma lista de histórico de upload de forma modular
-  function renderHistoryList(element, history) {
-    if (!element) return;
-
-    if (history.length === 0) {
-      element.innerHTML = `
-        <div class="empty-state">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14,2 14,8 20,8"/>
-          </svg>
-          <p>Nenhum arquivo carregado ainda</p>
-          <small>Use o botão "Carregar" para começar</small>
-        </div>
-      `;
-      return;
-    }
-
-    element.innerHTML = history.map(item => `
-      <div class="object-card" data-id="${item.id}">
-        <div class="object-card-info">
-          <div class="object-card-header">
-            <div class="object-card-name">${item.filename}</div>
-            <span class="mode-badge editor-mode">EDITOR</span>
-          </div>
-          <div class="object-card-meta">
-            ${item.voxelCount} voxels • ${item.timestamp.toLocaleTimeString()}
-          </div>
-        </div>
-        <div class="object-card-actions">
-          <button class="object-card-btn reload" data-id="${item.id}" title="Recarregar">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="23 4 23 10 17 10"/>
-              <polyline points="1 20 1 14 7 14"/>
-              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-            </svg>
-          </button>
-          <button class="object-card-btn delete" data-id="${item.id}" title="Remover">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              <line x1="10" y1="11" x2="10" y2="17"/>
-              <line x1="14" y1="11" x2="14" y2="17"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    `).join('');
-
-    // Adicionar event listeners para os botões
-    element.querySelectorAll('.reload').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const id = parseInt(e.currentTarget.dataset.id);
-        reloadFromHistory(id);
-      });
-    });
-
-    element.querySelectorAll('.delete').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const id = parseInt(e.currentTarget.dataset.id);
-        removeFromHistory(id);
-      });
-    });
-  }
-
-  // Função para atualizar a exibição do histórico
-  function updateUploadHistoryDisplay() {
-    // Apenas atualizar o histórico do editor, não interferir com o room mode
-    const uploadHistoryListElement = document.getElementById('uploadHistoryList');
-    if (uploadHistoryListElement) {
-      renderHistoryList(uploadHistoryListElement, uploadHistory);
-    }
-    
-    // O roomUploadHistoryList é gerenciado pelo roomMode.js
-    // Removido para evitar conflitos
-  }
-
-  // Função para recarregar arquivo do histórico
-  function reloadFromHistory(id) {
-    const item = uploadHistory.find(item => item.id === id);
-    if (!item) return;
-
-    console.log(`🔄 Recarregando "${item.filename}" do histórico (tipo: ${item.type})`);
-
-    // Perguntar confirmação
-    const shouldLoad = confirm(`Recarregar "${item.filename}" (${item.voxelCount} voxels)? Isso irá substituir a cena atual.`);
-
-    if (!shouldLoad) return;
-
-    try {
-      // Limpar cena atual
-      clearScene();
-
-      if (item.type === 'roomObject') {
-        // Se for um objeto de sala, usar o callback apropriado
-        if (roomModeSystem && !roomModeSystem.isRoomMode) {
-          roomModeSystem.enterRoomMode();
-        }
-        roomModeSystem.addRoomObject(item.data, item.filename);
-        console.log(`✅ Objeto de sala "${item.filename}" recarregado com sucesso`);
-      } else {
-        // Para voxels normais, adicionar individualmente
-        item.data.forEach(voxel => {
-          addVoxel(voxel.x, voxel.y, voxel.z, voxel.color, false);
-        });
-        console.log(`✅ Arquivo "${item.filename}" recarregado com sucesso`);
-      }
-
-      // Salvar estado
-      saveState();
-      updateVoxelCount();
-
-      // Fechar sidebar
-      closeUploadHistorySidebar();
-
-    } catch (error) {
-      console.error('❌ Erro ao recarregar arquivo:', error);
-      alert('Erro ao recarregar arquivo: ' + error.message);
-    }
-  }
-
-  // Função para remover arquivo do histórico
-  function removeFromHistory(id) {
-    const index = uploadHistory.findIndex(item => item.id === id);
-    if (index === -1) return;
-
-    const item = uploadHistory[index];
-    const shouldDelete = confirm(`Remover "${item.filename}" do histórico?`);
-
-    if (!shouldDelete) return;
-
-    uploadHistory.splice(index, 1);
-    updateUploadHistoryDisplay();
-
-    console.log(`🗑️ Arquivo "${item.filename}" removido do histórico`);
-  }
-
-  // Event listeners para o sidebar
-  if (uploadHistoryBtn) {
-    uploadHistoryBtn.addEventListener('click', () => {
-      // Fechar color sidebar se estiver aberto
-      if (leftPanel && leftPanel.classList.contains('show')) {
-        leftPanel.classList.remove('show');
-      }
-
-      // Toggle do sidebar de histórico
-      if (uploadHistorySidebar.classList.contains('show')) {
-        closeUploadHistorySidebar();
-      } else {
-        openUploadHistorySidebar();
-      }
-
-      // Atualizar posição da barra de ferramentas considerando todos os estados
-      updateToolbarPosition();
-    });
-  }  if (uploadHistoryClose) {
-    uploadHistoryClose.addEventListener('click', closeUploadHistorySidebar);
-  }
-
-  // Event listener para o campo de input file no sidebar
-  const voxelFileInput = document.getElementById('voxelFileInput');
-  if (voxelFileInput) {
-    voxelFileInput.addEventListener('change', (event) => {
-      const files = event.target.files;
-      if (files && files.length > 0) {
-        console.log('📁 Arquivos selecionados via sidebar:', files.length);
-        
-        // Processar múltiplos arquivos se selecionados
-        Array.from(files).forEach(file => {
-          if (fileUploadSystem) {
-            // Determinar o tipo de callback baseado no modo atual
-            const isRoomMode = roomModeSystem && roomModeSystem.isRoomMode;
-            const callbackType = isRoomMode ? 'roomObject' : 'voxel';
-            
-            console.log(`📁 Processando arquivo no modo ${isRoomMode ? 'sala' : 'editor'}: ${callbackType}`);
-            
-            // Simular o comportamento do handleFileChange
-            fileUploadSystem.currentCallbackType = callbackType;
-            const fakeEvent = { target: { files: [file] } };
-            fileUploadSystem.handleFileChange(fakeEvent);
-          }
-        });
-        
-        // Limpar o input para permitir seleção do mesmo arquivo novamente
-        event.target.value = '';
-      }
-    });
-  }
-
-  // Fechar sidebar ao clicar fora
-  document.addEventListener('click', (e) => {
-    if (uploadHistorySidebar && uploadHistorySidebar.classList.contains('show') &&
-        !uploadHistorySidebar.contains(e.target) &&
-        !uploadHistoryBtn.contains(e.target)) {
-      closeUploadHistorySidebar();
-    }
+  // Configurar callbacks do sistema de interação
+  hybridInteractionSystem.setCallbacks({
+    getIntersection,
+    removeVoxel,
+    updateCursor,
+    startHandleResize,
+    updateHandleResize,
+    finishHandleResize
   });
 
-  // Atualizar callbacks do sistema de upload para incluir histórico APENAS do editor
-  const originalOnVoxelDataLoaded = fileUploadSystem.callbacks.onVoxelDataLoaded;
-  const originalOnRoomObjectLoaded = fileUploadSystem.callbacks.onRoomObjectLoaded;
-  
-  fileUploadSystem.setCallbacks({
-    ...fileUploadSystem.callbacks,
-    onVoxelDataLoaded: (voxelData, filename) => {
-      // Chamar callback original
-      originalOnVoxelDataLoaded(voxelData, filename);
-
-      // Adicionar ao histórico APENAS se estivermos no modo editor
-      const isCurrentlyInRoomMode = roomModeSystem && roomModeSystem.isRoomMode;
-      if (!isCurrentlyInRoomMode) {
-        console.log('📝 Adicionando ao histórico do EDITOR');
-        addToUploadHistory(voxelData, filename, 'voxel');
-      } else {
-        console.log('🏠 Upload no room mode - não adicionando ao histórico do editor');
-      }
-    },
-    onRoomObjectLoaded: (voxelData, filename) => {
-      // Chamar callback original
-      originalOnRoomObjectLoaded(voxelData, filename);
-
-      // NÃO adicionar objetos de sala ao histórico do editor
-      // O room mode tem seu próprio sistema de histórico
-      console.log('🏠 Objeto de sala carregado - gerenciado pelo roomMode.js');
-    }
-  });
-
-  // Sistema de histórico inicializado
+  // Inicializar sistema de interação
+  hybridInteractionSystem.init();
 
   // =====================================================================
   // INICIALIZAÇÃO DO SISTEMA DE TUTORIAL
@@ -3997,8 +2034,6 @@ async function loadLightDispersionSystem() {
     console.error('❌ Erro ao carregar sistema de dispersão de luz:', error);
   }
 }
-
-
 
 // Iniciar quando dependências estiverem prontas
 waitForDependencies();

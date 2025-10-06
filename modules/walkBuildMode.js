@@ -9,6 +9,18 @@
 // - Mouse para olhar ao redor
 // - Clique esquerdo: colocar voxel
 // - Clique direito: remover voxel
+
+// Capturar erros de Pointer Lock globalmente
+document.addEventListener('pointerlockerror', (event) => {
+  console.warn('⚠️ Erro no Pointer Lock capturado globalmente:', event);
+});
+
+document.addEventListener('pointerlockchange', (event) => {
+  if (!document.pointerLockElement) {
+    // Usuário saiu do pointer lock - não é necessário logar como erro
+    console.log('🖱️ Pointer Lock desativado pelo usuário');
+  }
+});
 // - Sistema de colisão básica com paredes e chão
 // - Atmosfera realista com iluminação dinâmica
 //
@@ -290,7 +302,16 @@ export class WalkBuildModeSystem {
     document.addEventListener('contextmenu', this.preventContextMenu);
 
     // Bloquear ponteiro
-    document.body.requestPointerLock();
+    try {
+      const lockPromise = document.body.requestPointerLock();
+      if (lockPromise && lockPromise.catch) {
+        lockPromise.catch(error => {
+          console.warn('⚠️ Pointer Lock rejeitado pelo usuário:', error);
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ Erro ao ativar Pointer Lock:', error);
+    }
 
     // Ativar sistema de atmosfera para ambiente realista
     if (this.atmosphereSystem) {

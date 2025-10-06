@@ -864,8 +864,15 @@
       import('./modules/textureSystem.js'),
       import('./modules/roomConfigSystem.js'),
       import('./modules/doorWindowSystem.js'),
+      import('./modules/exportSystem.js'),
+      import('./modules/voxelSelectionSystem.js'),
+      import('./modules/areaFillSystem.js'),
+      import('./modules/uploadHistorySystem.js'),
+      import('./modules/helpSystem.js'),
+      import('./modules/editorLightingSystem.js'),
+      import('./modules/hybridInteractionSystem.js'),
       import('./tutorials/dragObjectsTutorial.js')
-    ]).then(([colorModule, fileUploadModule, referenceModule, mouseModule, roomModule, walkBuildModule, timeModule, tutorialModule, textureModule, roomConfigModule, doorWindowModule, dragTutorialModule]) => {
+    ]).then(([colorModule, fileUploadModule, referenceModule, mouseModule, roomModule, walkBuildModule, timeModule, tutorialModule, textureModule, roomConfigModule, doorWindowModule, exportModule, voxelSelectionModule, areaFillModule, uploadHistoryModule, helpSystemModule, editorLightingModule, hybridInteractionModule, dragTutorialModule]) => {
       window.ColorSystem = colorModule.ColorSystem;
       window.FileUploadSystem = fileUploadModule.FileUploadSystem;
       window.ReferenceImageSystem = referenceModule.ReferenceImageSystem;
@@ -877,6 +884,13 @@
       window.TextureSystem = textureModule.TextureSystem;
       window.RoomConfigSystem = roomConfigModule.RoomConfigSystem;
       window.DoorWindowSystem = doorWindowModule.DoorWindowSystem;
+      window.ExportSystem = exportModule.ExportSystem;
+      window.VoxelSelectionSystem = voxelSelectionModule.VoxelSelectionSystem;
+      window.AreaFillSystem = areaFillModule.AreaFillSystem;
+      window.UploadHistorySystem = uploadHistoryModule.UploadHistorySystem;
+      window.HelpSystem = helpSystemModule.HelpSystem;
+      window.EditorLightingSystem = editorLightingModule.EditorLightingSystem;
+      window.HybridInteractionSystem = hybridInteractionModule.HybridInteractionSystem;
       window.dragObjectsTutorial = dragTutorialModule.dragObjectsTutorial;
       
       // Carregar o script principal após módulos estarem prontos
