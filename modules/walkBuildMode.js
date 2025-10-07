@@ -143,8 +143,50 @@ export class WalkBuildModeSystem {
     // Sistema de atmosfera realista
     this.atmosphereSystem = null;
 
+    // Sistema de iluminação artificial
+    this.lightingSystem = null;
+
     // Elementos DOM
     this.crosshair = null;
+
+    // === SISTEMA DE CACHE INTELIGENTE AVANÇADO ===
+    this.performanceCache = {
+      buildableObjects: null,
+      doorMeshes: null,
+      roomObjects: null,
+      lastUpdate: 0,
+      sceneVersion: 0,
+      isValid: false,
+      framesSinceUpdate: 0,
+      lastDoorCount: 0,
+      doorCountCheckInterval: null
+    };
+    
+    // Debounce para atualizações de UI (otimizado)
+    this.debouncedUIUpdate = this.debounce(this.refreshWalkModePanel.bind(this), 150);
+    
+    // Spatial hash para detecção rápida de portas
+    this.doorSpatialHash = new Map();
+    
+    // Object pooling para vetores temporários
+    this.vectorPool = {
+      vectors: [],
+      getVector: () => {
+        return this.vectorPool.vectors.pop() || new THREE.Vector3();
+      },
+      returnVector: (v) => {
+        v.set(0, 0, 0);
+        if (this.vectorPool.vectors.length < 10) {
+          this.vectorPool.vectors.push(v);
+        }
+      }
+    };
+    
+    // RAF otimizado
+    this.frameId = null;
+    this.lastFrameTime = 0;
+    this.targetFPS = 60;
+    this.frameInterval = 1000 / this.targetFPS;
 
     // Bind methods
     this.onKeyDown = this.onKeyDown.bind(this);
@@ -155,6 +197,21 @@ export class WalkBuildModeSystem {
     this.animate = this.animate.bind(this);
 
     this.init();
+  }
+
+  /**
+   * Debounce elegante para evitar atualizações excessivas
+   */
+  debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
   }
 
   init() {
@@ -184,6 +241,147 @@ export class WalkBuildModeSystem {
     
     // Expor controle de cursor para o botão de olho
     window.reactivateWalkControls = () => this.reactivatePointerLock();
+    
+    // Expor método para testar duplo clique (debug)
+    window.testDoubleClick = (doorId) => {
+      console.log('🧪 Testando duplo clique na porta:', doorId);
+      this.processDoorClick(doorId);
+      setTimeout(() => this.processDoorClick(doorId), 150);
+    };
+    
+    // Expor métodos de debug para portas
+    window.debugDoors = {
+      listAll: () => {
+        console.log('🚪 === DEBUG: TODAS AS PORTAS ===');
+        
+        if (window.doorControls) {
+          const doors = window.doorControls.list();
+          console.log('📋 Via doorControls:', doors);
+        }
+        
+        if (window.doorWindowSystem?.doors) {
+          console.log('🏠 Via doorWindowSystem:', Array.from(window.doorWindowSystem.doors.keys()));
+        }
+        
+        // Portas na cena
+        const sceneDoorsIds = [];
+        this.scene.traverse((child) => {
+          if (child.userData && child.userData.doorId) {
+            sceneDoorsIds.push(child.userData.doorId);
+          }
+        });
+        console.log('🎭 IDs na cena:', [...new Set(sceneDoorsIds)]);
+      },
+      
+      select: (doorId) => {
+        console.log(`🎯 Forçando seleção da porta: ${doorId}`);
+        this.selectDoorForEditing(doorId);
+      },
+      
+      testOutline: (doorId) => {
+        console.log(`🔮 Testando outline para porta: ${doorId}`);
+        this.createDoorOutline(doorId);
+      },
+      
+      forceRefresh: () => {
+        console.log('🚪🔄 Forçando atualização do cache de portas...');
+        this.checkForNewDoors();
+        this.refreshDoorCache();
+      },
+      
+      getCache: () => {
+        return {
+          doorCount: this.performanceCache.lastDoorCount,
+          spatialHashSize: this.doorSpatialHash?.size || 0,
+          cacheValid: this.performanceCache.isValid,
+          lastUpdate: new Date(this.performanceCache.lastUpdate).toLocaleTimeString()
+        };
+      }
+    };
+    
+    // Sistema de limpeza inteligente com throttling
+    this.cleanupInterval = setInterval(() => {
+      if (this.isActive) {
+        // Throttling baseado na performance
+        const now = Date.now();
+        if (!this._lastCleanup || now - this._lastCleanup > 45000) {
+          this.cleanupResources();
+          this._lastCleanup = now;
+        }
+        
+        // Monitor de texturas menos frequente
+        if (!this._lastTextureCheck || now - this._lastTextureCheck > 15000) {
+          this.monitorTextureUsage();
+          this._lastTextureCheck = now;
+        }
+        
+        // NOVO: Detectar mudanças no número de portas
+        this.checkForNewDoors();
+      }
+    }, 15000); // Check a cada 15 segundos, mas ação menos frequente
+    
+    // Monitor mais frequente apenas para detecção de portas
+    this.doorCheckInterval = setInterval(() => {
+      if (this.isActive) {
+        this.checkForNewDoors();
+      }
+    }, 2000); // Check de portas a cada 2 segundos
+    
+    // Expor controles de performance globalmente
+    window.walkPerformance = {
+      cleanup: () => this.cleanupResources(),
+      getCache: () => this.performanceCache,
+      getTextureInfo: () => this.getTextureInfo(),
+      optimizeMaterials: () => this.optimizeAllMaterials()
+    };
+    
+    // Expor sistema de seleção para debug
+    window.walkSystem = this;
+    
+    // Expor comandos de debug para lâmpadas
+    window.debugLamps = {
+      create: (x, z, type = 'warm') => {
+        if (this.lightingSystem) {
+          const lampId = `debug_lamp_${Date.now()}`;
+          return this.lightingSystem.createLamp(lampId, { x, y: 0, z }, type);
+        } else {
+          console.error('❌ Sistema de iluminação não carregado');
+        }
+      },
+      
+      listAll: () => {
+        if (window.lampControls) {
+          return window.lampControls.list();
+        } else {
+          console.error('❌ lampControls não disponível');
+        }
+      },
+      
+      removeAll: () => {
+        if (window.lampControls) {
+          const lamps = window.lampControls.list();
+          lamps.forEach(lamp => window.lampControls.remove(lamp.id));
+          console.log(`🗑️ Removidas ${lamps.length} lâmpadas`);
+        }
+      },
+      
+      testPresets: () => {
+        if (window.lampControls) {
+          console.log('🔥 Testando preset quente...');
+          window.lampControls.warmLighting();
+          
+          setTimeout(() => {
+            console.log('❄️ Testando preset frio...');
+            window.lampControls.coolLighting();
+          }, 3000);
+          
+          setTimeout(() => {
+            console.log('🌈 Testando preset misto...');
+            window.lampControls.mixedLighting();
+          }, 6000);
+        }
+      }
+    };
   }
 
   /**
@@ -204,6 +402,19 @@ export class WalkBuildModeSystem {
       // Sistema de atmosfera inicializado
     } catch (error) {
       console.warn('⚠️ Erro ao inicializar sistema de atmosfera:', error);
+    }
+    
+    // Inicializar sistema de iluminação artificial
+    try {
+      // Importar dinamicamente o sistema de iluminação
+      import('./lightingSystem.js').then(({ LightingSystem }) => {
+        this.lightingSystem = new LightingSystem(this.scene, this.roomModeSystem);
+        console.log('💡 Sistema de iluminação artificial integrado ao walk mode');
+      }).catch(error => {
+        console.warn('⚠️ Erro ao carregar sistema de iluminação:', error);
+      });
+    } catch (error) {
+      console.warn('⚠️ Erro ao inicializar sistema de iluminação:', error);
     }
   }
 
@@ -337,16 +548,12 @@ export class WalkBuildModeSystem {
     // Mostrar lista de portas existentes
     this.showExistingDoors();
 
-    // Corrigir materiais das portas para garantir que não fiquem transparentes
-    this.fixDoorMaterials();
+    // Garantir detecção de todas as portas ao entrar no modo
+    this.performanceCache.lastDoorCount = 0; // Reset para forçar detecção
+    this.checkForNewDoors(); // Detectar portas imediatamente
     
-    // CORREÇÃO ADICIONAL: Forçar opacidade após um breve delay
-    setTimeout(() => {
-      this.forceAllDoorOpacity();
-    }, 500);
-    
-    // Iniciar monitoramento contínuo de opacidade
-    this.startOpacityMonitoring();
+    // Corrigir materiais das portas para garantir que não fiquem transparentes (UMA VEZ)
+    this.fixDoorMaterialsOnce();
 
   }
 
@@ -387,11 +594,28 @@ export class WalkBuildModeSystem {
     // Esconder mira
     this.crosshair.style.display = 'none';
     
-    // GARANTIR opacidade das portas ao sair do modo walk
-    this.forceAllDoorOpacity();
+    // GARANTIR opacidade das portas ao sair do modo walk (UMA VEZ)
+    this.ensureDoorOpacityOnce();
+
+    // Cleanup completo ao sair
+    this.performCompleteCleanup();
     
-    // Parar monitoramento de opacidade
-    this.stopOpacityMonitoring();
+    // Parar todos os intervals
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    
+    if (this.doorCheckInterval) {
+      clearInterval(this.doorCheckInterval);
+      this.doorCheckInterval = null;
+    }
+    
+    // Cancelar animation frame
+    if (this.frameId) {
+      cancelAnimationFrame(this.frameId);
+      this.frameId = null;
+    }
 
     // Esconder inventário
     this.hideInventory();
@@ -639,67 +863,81 @@ export class WalkBuildModeSystem {
 
     event.preventDefault();
 
-    // Se estiver em modo drag de porta, confirmar ação
-    if (this.isDraggingDoor && event.button === 0) {
-      this.confirmDoorDrag();
+    // Early returns para drag modes
+    if (this.isDraggingDoor) {
+      if (event.button === 0) {
+        this.confirmDoorDrag();
+      } else if (event.button === 2) {
+        this.cancelDoorDrag();
+      }
       return;
     }
 
-    // Se clique direito durante drag, cancelar
-    if (this.isDraggingDoor && event.button === 2) {
-      this.cancelDoorDrag();
-      return;
-    }
-
-
-    // Só processar cliques esquerdos para portas
+    // Só processar cliques esquerdos para otimização
     if (event.button !== 0) return;
 
-    // Atualizar raycaster
-    this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.walkCamera);
+    // Cache do raycast para evitar recalculos
+    if (!this._raycastCache || Date.now() - this._raycastCache.timestamp > 50) {
+      this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.walkCamera);
+      
+      // Otimização: buscar primeiro em objetos mais prováveis (portas)
+      let allObjects = [];
+      
+      // Priorizar objetos de porta (mais comum)
+      if (this.doorSpatialHash && this.doorSpatialHash.size > 0) {
+        for (const doorData of this.doorSpatialHash.values()) {
+          if (doorData.meshes) {
+            allObjects.push(...doorData.meshes.slice(0, 3)); // Limitar meshes por porta
+          }
+        }
+      }
+      
+      // Adicionar room objects apenas se necessário
+      const roomObjects = this.getRoomObjects();
+      allObjects.push(...roomObjects.slice(0, 10)); // Limitar room objects
+      
+      // Adicionar buildable objects com cache
+      const buildableObjects = this.getBuildableObjects();
+      allObjects.push(...buildableObjects);
+      
+      // Cache do raycast
+      const allIntersects = this.raycaster.intersectObjects(allObjects, true);
+      this._raycastCache = {
+        intersects: allIntersects,
+        timestamp: Date.now()
+      };
+    }
 
-    // Primeiro verificar se clicou em uma porta (para edição)
-    const allObjects = [...this.getRoomObjects(), ...this.getBuildableObjects()];
-    
-    const allIntersects = this.raycaster.intersectObjects(allObjects, true);
+    const allIntersects = this._raycastCache.intersects;
 
     if (allIntersects.length > 0) {
       const intersectedMesh = allIntersects[0].object;
       
-      // Verificar se clicou em uma porta
-      if (this.detectDoorClick(intersectedMesh)) {
-        return; // Porta foi processada no detectDoorClick
+      // Verificação otimizada de porta usando userData primeiro
+      if (intersectedMesh.userData?.doorId || intersectedMesh.userData?.isDoor) {
+        if (this.detectDoorClick(intersectedMesh)) {
+          return;
+        }
       }
       
-      // Verificar se clicou em um objeto da sala
-      const roomObject = this.findRoomObjectByMesh(intersectedMesh);
+      // Room object check otimizado
+      const roomObject = this.findRoomObjectByMeshOptimized(intersectedMesh);
       if (roomObject) {
         this.selectRoomObject(roomObject);
         return;
       }
-    }
 
-    // Se não clicou em objeto da sala, verificar construção de voxels
-    const buildableObjects = this.getBuildableObjects();
-    const buildIntersects = this.raycaster.intersectObjects(buildableObjects, false);
-
-    if (buildIntersects.length > 0) {
-      const intersect = buildIntersects[0];
+      // Construção de voxels
+      const intersect = allIntersects[0];
       const point = intersect.point;
       const face = intersect.face;
-      const object = intersect.object;
 
-      if (event.button === 0) { // Clique esquerdo - construir
-        // Desselecionar objeto se estava selecionado
-        if (this.selectedObject) {
-          this.deselectRoomObject();
-        }
-        this.placeVoxel(point, face);
-      } else if (event.button === 2) { // Clique direito - remover
-        this.removeVoxel(object);
+      if (this.selectedObject) {
+        this.deselectRoomObject();
       }
-    } else if (event.button === 0) {
-      // Clique no vazio - desselecionar objeto
+      this.placeVoxel(point, face);
+    } else {
+      // Clique no vazio
       if (this.selectedObject) {
         this.deselectRoomObject();
       }
@@ -725,102 +963,249 @@ export class WalkBuildModeSystem {
   }
 
   getBuildableObjects() {
-    // Retornar todos os voxels do editor e geometrias da sala
-    const objects = [];
-
-    // Adicionar todos os voxels do editor usando a função getVoxels()
-    try {
-      const editorVoxels = this.editorFunctions.getVoxels();
-      objects.push(...editorVoxels);
-    } catch (error) {
-      console.warn('Erro ao obter voxels do editor:', error);
-      // Fallback: adicionar voxels da sala
-      if (this.roomModeSystem && this.roomModeSystem.roomObjects) {
-        this.roomModeSystem.roomObjects.forEach(obj => {
-          obj.meshGroup.traverse((child) => {
-            if (child.isMesh) {
-              objects.push(child);
-            }
-          });
-        });
-      }
+    // Cache ultra-inteligente com frame counting
+    const cacheAge = Date.now() - this.performanceCache.lastUpdate;
+    const framesSinceUpdate = this.performanceCache.framesSinceUpdate;
+    
+    if (this.performanceCache.isValid && 
+        this.performanceCache.buildableObjects && 
+        (cacheAge < 120000 || framesSinceUpdate < 300)) { // 2 min ou 300 frames
+      return this.performanceCache.buildableObjects;
     }
 
-    // Adicionar geometria da sala (chão e paredes)
+    // Lazy loading progressivo para evitar hitches
+    const objects = [];
+    let objectCount = 0;
+    const MAX_OBJECTS_PER_FRAME = 50; // Limitar objetos processados por frame
+
+    // Adicionar voxels do editor (prioritário)
+    try {
+      const editorVoxels = this.editorFunctions.getVoxels();
+      if (editorVoxels && editorVoxels.length > 0) {
+        // Limitar para evitar hitches
+        const limitedVoxels = editorVoxels.slice(0, MAX_OBJECTS_PER_FRAME);
+        objects.push(...limitedVoxels);
+        objectCount += limitedVoxels.length;
+      }
+    } catch (error) {
+      console.warn('Erro ao obter voxels do editor:', error);
+    }
+
+    // Room objects com cache separado
+    if (!this.performanceCache.roomObjects && this.roomModeSystem?.roomObjects) {
+      const roomObjects = [];
+      const maxRoomObjects = Math.min(this.roomModeSystem.roomObjects.length, 5);
+      
+      for (let i = 0; i < maxRoomObjects && objectCount < MAX_OBJECTS_PER_FRAME; i++) {
+        const obj = this.roomModeSystem.roomObjects[i];
+        if (obj?.meshGroup) {
+          obj.meshGroup.traverse((child) => {
+            if (child.isMesh && objectCount < MAX_OBJECTS_PER_FRAME) {
+              roomObjects.push(child);
+              objectCount++;
+            }
+          });
+        }
+      }
+      this.performanceCache.roomObjects = roomObjects;
+    }
+    
+    if (this.performanceCache.roomObjects) {
+      objects.push(...this.performanceCache.roomObjects);
+    }
+
+    // Geometria da sala (sempre necessária)
     if (this.roomModeSystem) {
       if (this.roomModeSystem.roomFloor) {
         objects.push(this.roomModeSystem.roomFloor);
       }
       if (this.roomModeSystem.roomWalls) {
-        objects.push(...this.roomModeSystem.roomWalls);
+        objects.push(...this.roomModeSystem.roomWalls.slice(0, 10)); // Limitar paredes
       }
     }
 
-    // CORREÇÃO CRÍTICA: Buscar portas do sistema doorWindowSystem
-    const doorObjects = this.getDoorObjectsFromSystem();
-    objects.push(...doorObjects);
+    // Portas otimizadas
+    const { doorObjects, spatialHash } = this.getOptimizedDoorObjects();
+    objects.push(...doorObjects.slice(0, 20)); // Limitar portas para performance
+    
+    this.doorSpatialHash = spatialHash;
 
-    // Também buscar portas perdidas na cena (fallback)
-    const sceneDoors = this.getAllDoorMeshes();
-    const newDoors = sceneDoors.filter(door => !doorObjects.includes(door));
-    objects.push(...newDoors);
+    // Cache com metadados de performance
+    this.performanceCache.buildableObjects = objects;
+    this.performanceCache.doorMeshes = doorObjects;
+    this.performanceCache.isValid = true;
+    this.performanceCache.lastUpdate = Date.now();
+    this.performanceCache.framesSinceUpdate = 0;
+    this.performanceCache.objectCount = objects.length;
+
+    // Log apenas se mudança significativa
+    if (Math.abs(objectCount - (this.performanceCache.lastObjectCount || 0)) > 5) {
+      console.log(`📦 Cache atualizado: ${objects.length} objetos buildable`);
+      this.performanceCache.lastObjectCount = objectCount;
+    }
 
     return objects;
   }
 
-  // MÉTODO PRINCIPAL: Buscar portas diretamente do sistema doorWindowSystem
-  getDoorObjectsFromSystem() {
+  /**
+   * MÉTODO OTIMIZADO: Buscar portas com spatial hash para detecção rápida
+   */
+  getOptimizedDoorObjects() {
+    // Verificar se há mudanças nas portas primeiro
+    const currentDoorCount = this.getCurrentDoorCount();
+    const cacheAge = Date.now() - this.performanceCache.lastUpdate;
+    const doorCountChanged = currentDoorCount !== this.performanceCache.lastDoorCount;
+    
+    // Usar cache apenas se não houve mudanças E o cache não é muito antigo
+    if (this.performanceCache.doorMeshes && 
+        this.doorSpatialHash && 
+        this.doorSpatialHash.size > 0 && 
+        !doorCountChanged &&
+        cacheAge < 30000) { // Cache válido por 30 segundos
+      return { 
+        doorObjects: this.performanceCache.doorMeshes, 
+        spatialHash: this.doorSpatialHash 
+      };
+    }
+    
+    // Se houve mudança, log da atualização
+    if (doorCountChanged) {
+      console.log(`🚪🔄 Reconstruindo cache: mudança de ${this.performanceCache.lastDoorCount} para ${currentDoorCount} portas`);
+    }
+
     const doorObjects = [];
+    const spatialHash = new Map();
     
     // Verificar se o sistema de portas existe
     if (!window.doorWindowSystem || !window.doorWindowSystem.doors) {
-      return doorObjects;
+      return { doorObjects, spatialHash };
     }
-    
     
     // Iterar por todas as portas no sistema
     window.doorWindowSystem.doors.forEach((doorData, doorId) => {
+      const doorMeshes = [];
       
-      // Adicionar todos os elementos da porta (grupo, folha, batente)
+      // Processar grupo da porta de forma mais eficiente
       if (doorData.group) {
-        // Percorrer todos os meshes do grupo da porta
         doorData.group.traverse((child) => {
           if (child.isMesh) {
             // Marcar o mesh com o ID da porta para facilitar detecção
             child.userData.doorId = doorId;
             child.userData.isDoor = true;
             doorObjects.push(child);
+            doorMeshes.push(child);
           }
         });
       }
       
-      // Também adicionar folha e batente separadamente (se existirem)
+      // Processar folha da porta
       if (doorData.leaf && doorData.leaf.isMesh) {
         doorData.leaf.userData.doorId = doorId;
         doorData.leaf.userData.isDoor = true;
-        if (!doorObjects.includes(doorData.leaf)) {
-          doorObjects.push(doorData.leaf);
-        }
+        doorObjects.push(doorData.leaf);
+        doorMeshes.push(doorData.leaf);
       }
       
+      // Processar batente
       if (doorData.frame) {
         doorData.frame.traverse((child) => {
           if (child.isMesh) {
             child.userData.doorId = doorId;
             child.userData.isDoor = true;
-            if (!doorObjects.includes(child)) {
-              doorObjects.push(child);
-            }
+            doorObjects.push(child);
+            doorMeshes.push(child);
           }
+        });
+      }
+      
+      // Criar entrada no spatial hash para busca O(1)
+      if (doorMeshes.length > 0) {
+        spatialHash.set(doorId, {
+          meshes: doorMeshes,
+          position: doorData.group ? doorData.group.position.clone() : new THREE.Vector3(),
+          bounds: this.calculateDoorBounds(doorMeshes)
         });
       }
     });
     
-    return doorObjects;
+    // Log apenas quando há mudança significativa
+    if (doorObjects.length > 0) {
+      console.log(`🚪 Cache de portas atualizado: ${doorObjects.length} meshes, ${spatialHash.size} portas`);
+    }
+    
+    // Atualizar contador de portas
+    this.performanceCache.lastDoorCount = spatialHash.size;
+    
+    return { doorObjects, spatialHash };
+  }
+  
+  /**
+   * Contar portas atuais em todos os sistemas
+   */
+  getCurrentDoorCount() {
+    let count = 0;
+    const doorIds = new Set();
+    
+    // Contar via doorControls
+    if (window.doorControls) {
+      try {
+        const doors = window.doorControls.list();
+        doors.forEach(door => doorIds.add(door.id));
+      } catch (error) {
+        // Silencioso - pode falhar durante inicialização
+      }
+    }
+    
+    // Contar via doorWindowSystem
+    if (window.doorWindowSystem?.doors) {
+      window.doorWindowSystem.doors.forEach((_, id) => doorIds.add(id));
+    }
+    
+    return doorIds.size;
   }
 
-  // Método fallback para encontrar todos os meshes de portas na cena
+  /**
+   * Calcular bounds de uma porta para spatial hash
+   */
+  calculateDoorBounds(meshes) {
+    if (!meshes || meshes.length === 0) return null;
+    
+    const box = new THREE.Box3();
+    meshes.forEach(mesh => {
+      const meshBox = new THREE.Box3().setFromObject(mesh);
+      box.union(meshBox);
+    });
+    
+    return {
+      min: box.min.clone(),
+      max: box.max.clone(),
+      center: box.getCenter(new THREE.Vector3()),
+      size: box.getSize(new THREE.Vector3())
+    };
+  }
+
+  /**
+   * Invalidar cache quando a cena muda (método menos agressivo)
+   */
+  invalidateCache() {
+    // Só invalidar se o cache for muito antigo (mais de 10 segundos)
+    const cacheAge = Date.now() - this.performanceCache.lastUpdate;
+    if (cacheAge > 10000) {
+      this.performanceCache.isValid = false;
+      this.performanceCache.buildableObjects = null;
+      this.performanceCache.doorMeshes = null;
+      this.performanceCache.sceneVersion++;
+      console.log('🔄 Cache invalidado (idade:', cacheAge, 'ms)');
+    }
+  }
+
+  // Método fallback para encontrar todos os meshes de portas na cena (OBSOLETO - mantido para compatibilidade)
   getAllDoorMeshes() {
+    // Usar cache se disponível
+    if (this.performanceCache.doorMeshes) {
+      return this.performanceCache.doorMeshes;
+    }
+    
     const doorMeshes = [];
     
     // Percorrer toda a cena procurando objetos com userData relacionado a portas
@@ -899,66 +1284,88 @@ export class WalkBuildModeSystem {
     return this.editorFunctions.getSelectedColor();
   }
 
-  updateMovement() {
+  updateMovement(deltaTime = 16.67) {
     if (!this.isActive) return;
 
-    // =====================================================================
-    // LÓGICA DE MOVIMENTO CORRIGIDA
-    // =====================================================================
+    // Usar object pooling para vetores temporários
+    const tempDirection = this.vectorPool.getVector();
+    const tempMovement = this.vectorPool.getVector();
+    const newPosition = this.vectorPool.getVector();
 
-    // 1. Determinar a direção do input (local para a câmera)
-    this.direction.z = Number(this.keys.s) - Number(this.keys.w);
-    this.direction.x = Number(this.keys.d) - Number(this.keys.a);
-    this.direction.normalize(); // Previne movimento diagonal mais rápido
+    try {
+      // 1. Determinar a direção do input (otimizado)
+      tempDirection.set(
+        Number(this.keys.d) - Number(this.keys.a),
+        0,
+        Number(this.keys.s) - Number(this.keys.w)
+      );
+      
+      // Só normalizar se há movimento (economiza cálculos)
+      const hasMovement = tempDirection.lengthSq() > 0;
+      if (hasMovement) {
+        tempDirection.normalize();
+      }
 
-    // 2. Determinar a velocidade atual
-    const currentSpeed = this.keys.shift ? this.sprintSpeed : this.moveSpeed;
+      // 2. Determinar a velocidade atual
+      const currentSpeed = this.keys.shift ? this.sprintSpeed : this.moveSpeed;
 
-    // 3. Calcular a velocidade alvo nos eixos X e Z
-    // A mágica acontece aqui: aplicamos a rotação da câmera (yaw) à direção do input
-    // para obter o vetor de movimento no espaço do MUNDO.
-    const moveX = this.direction.x * Math.cos(this.yaw) + this.direction.z * Math.sin(this.yaw);
-    const moveZ = this.direction.z * Math.cos(this.yaw) - this.direction.x * Math.sin(this.yaw);
-    
-    this.targetVelocity.x = moveX * currentSpeed;
-    this.targetVelocity.z = moveZ * currentSpeed;
+      // 3. Calcular movimento usando cache de sin/cos (otimização)
+      if (!this._cachedYaw || Math.abs(this._cachedYaw - this.yaw) > 0.01) {
+        this._cachedYaw = this.yaw;
+        this._cosYaw = Math.cos(this.yaw);
+        this._sinYaw = Math.sin(this.yaw);
+      }
+      
+      const moveX = hasMovement ? (tempDirection.x * this._cosYaw + tempDirection.z * this._sinYaw) : 0;
+      const moveZ = hasMovement ? (tempDirection.z * this._cosYaw - tempDirection.x * this._sinYaw) : 0;
+      
+      this.targetVelocity.x = moveX * currentSpeed;
+      this.targetVelocity.z = moveZ * currentSpeed;
 
-    // 4. Interpolar suavemente a velocidade atual para a velocidade alvo (aceleração)
-    this.velocity.x += (this.targetVelocity.x - this.velocity.x) * this.acceleration;
-    this.velocity.z += (this.targetVelocity.z - this.velocity.z) * this.acceleration;
+      // 4. Interpolar velocidade (frame rate independent)
+      const deltaFactor = Math.min(deltaTime / 16.67, 2); // Cap para evitar grandes saltos
+      const accel = this.acceleration * deltaFactor;
+      
+      this.velocity.x += (this.targetVelocity.x - this.velocity.x) * accel;
+      this.velocity.z += (this.targetVelocity.z - this.velocity.z) * accel;
 
-    // 5. Aplicar atrito para desacelerar suavemente
-    this.velocity.x *= this.friction;
-    this.velocity.z *= this.friction;
+      // 5. Aplicar atrito
+      const frictionFactor = Math.pow(this.friction, deltaFactor);
+      this.velocity.x *= frictionFactor;
+      this.velocity.z *= frictionFactor;
 
-    // 6. Lidar com movimento vertical (pulo e gravidade)
-    if (this.keys.space && this.isOnGround) {
-      this.verticalVelocity = this.jumpForce;
-      this.isOnGround = false;
-    }
-    if (!this.isOnGround) {
-      this.verticalVelocity -= this.gravity;
-    }
+      // 6. Movimento vertical otimizado
+      if (this.keys.space && this.isOnGround) {
+        this.verticalVelocity = this.jumpForce;
+        this.isOnGround = false;
+      }
+      if (!this.isOnGround) {
+        this.verticalVelocity -= this.gravity * deltaFactor;
+      }
 
-    // 7. Construir o vetor de movimento final
-    const finalMovement = new THREE.Vector3(
-      this.velocity.x,
-      this.verticalVelocity,
-      this.velocity.z
-    );
+      // 7. Construir movimento final usando pooled vector
+      tempMovement.set(
+        this.velocity.x,
+        this.verticalVelocity,
+        this.velocity.z
+      );
 
-    // 8. Verificar colisão e atualizar a posição
-    // (A lógica de colisão foi simplificada para clareza, pode ser expandida)
-    const newPosition = this.walkCamera.position.clone().add(finalMovement);
-    
-    // Por enquanto, vamos aplicar o movimento diretamente para testar a direção
-    this.walkCamera.position.copy(newPosition);
+      // 8. Atualizar posição
+      newPosition.copy(this.walkCamera.position).add(tempMovement);
+      this.walkCamera.position.copy(newPosition);
 
-    // Uma verificação de chão simples para pular
-    if (this.walkCamera.position.y < 2.0) {
+      // 9. Verificação de chão otimizada
+      if (this.walkCamera.position.y < 2.0) {
         this.walkCamera.position.y = 2.0;
         this.isOnGround = true;
         this.verticalVelocity = 0;
+      }
+      
+    } finally {
+      // Devolver vetores ao pool
+      this.vectorPool.returnVector(tempDirection);
+      this.vectorPool.returnVector(tempMovement);
+      this.vectorPool.returnVector(newPosition);
     }
   }
 
@@ -1061,14 +1468,30 @@ export class WalkBuildModeSystem {
     return objects;
   }
 
-  animate() {
-    if (!this.isActive) return;
+  animate(currentTime = performance.now()) {
+    if (!this.isActive) {
+      if (this.frameId) {
+        cancelAnimationFrame(this.frameId);
+        this.frameId = null;
+      }
+      return;
+    }
 
-    // Atualizar movimento e física
-    this.updateMovement();
+    // Frame skipping inteligente para manter performance
+    const deltaTime = currentTime - this.lastFrameTime;
+    
+    if (deltaTime >= this.frameInterval) {
+      // Atualizar movimento e física apenas quando necessário
+      this.updateMovement(deltaTime);
+      
+      // Atualizar cache frames counter
+      this.performanceCache.framesSinceUpdate++;
+      
+      this.lastFrameTime = currentTime;
+    }
 
     // Continuar animação no próximo frame
-    requestAnimationFrame(this.animate);
+    this.frameId = requestAnimationFrame(this.animate);
   }
 
   // Método público para atualização no loop de renderização principal
@@ -1164,22 +1587,39 @@ export class WalkBuildModeSystem {
     return objects;
   }
 
-  // Encontrar objeto da sala pelo mesh clicado
-  findRoomObjectByMesh(mesh) {
-    if (!this.roomModeSystem || !this.roomModeSystem.roomObjects) return null;
+  // Encontrar objeto da sala pelo mesh clicado (otimizado)
+  findRoomObjectByMeshOptimized(mesh) {
+    if (!this.roomModeSystem?.roomObjects) return null;
+    
+    // Cache de mapeamento mesh -> roomObject
+    if (!this._meshToRoomObjectCache) {
+      this._meshToRoomObjectCache = new Map();
+      this._cacheRoomObjectMeshes();
+    }
+    
+    return this._meshToRoomObjectCache.get(mesh) || null;
+  }
+
+  // Cache mesh mapping para room objects
+  _cacheRoomObjectMeshes() {
+    if (!this.roomModeSystem?.roomObjects) return;
+    
+    this._meshToRoomObjectCache.clear();
     
     for (const roomObject of this.roomModeSystem.roomObjects) {
       if (roomObject.meshGroup) {
-        let found = false;
         roomObject.meshGroup.traverse((child) => {
-          if (child === mesh) {
-            found = true;
+          if (child.isMesh) {
+            this._meshToRoomObjectCache.set(child, roomObject);
           }
         });
-        if (found) return roomObject;
       }
     }
-    return null;
+  }
+
+  // Método legacy mantido para compatibilidade
+  findRoomObjectByMesh(mesh) {
+    return this.findRoomObjectByMeshOptimized(mesh);
   }
 
   // Selecionar objeto da sala
@@ -1379,7 +1819,8 @@ export class WalkBuildModeSystem {
     const itemTypes = {
       0: 'window',
       1: 'door',
-      2: 'light'
+      2: 'lamp_warm',
+      3: 'lamp_cool'
     };
     return itemTypes[slotIndex] || null;
   }
@@ -1388,7 +1829,8 @@ export class WalkBuildModeSystem {
     const itemNames = {
       0: 'Janela',
       1: 'Porta',
-      2: 'Luz'
+      2: 'Lâmpada Quente',
+      3: 'Lâmpada Fria'
     };
     return itemNames[slotIndex] || 'Item Desconhecido';
   }
@@ -1397,7 +1839,8 @@ export class WalkBuildModeSystem {
     const itemIcons = {
       0: '🪟',
       1: '🚪',
-      2: '💡'
+      2: '🔥💡',
+      3: '❄️💡'
     };
     return itemIcons[slotIndex] || '❓';
   }
@@ -1411,7 +1854,9 @@ export class WalkBuildModeSystem {
       
       const descriptions = {
         'window': 'Clique em uma parede para colocar uma janela',
-        'door': 'Clique em uma parede para colocar uma porta', 
+        'door': 'Clique em uma parede para colocar uma porta',
+        'lamp_warm': 'Clique no chão para colocar uma lâmpada quente (2800K)',
+        'lamp_cool': 'Clique no chão para colocar uma lâmpada fria (6000K)',
         'light': 'Clique para adicionar uma fonte de luz'
       };
       
@@ -1450,13 +1895,31 @@ export class WalkBuildModeSystem {
       return;
     }
 
+    console.log(`🔨 Construindo item: ${this.selectedItem ? this.selectedItem.type : 'null'}`);
 
-    // Fazer raycast para encontrar onde o usuário clicou
-    const intersection = this.performWallRaycast();
-    
-    if (intersection) {
-      this.placeItemAtIntersection(intersection);
+    // Verificar se ainda há item selecionado
+    if (!this.selectedItem || !this.selectedItem.type) {
+      console.warn('⚠️ Nenhum item selecionado para construção');
+      return;
+    }
+
+    // Diferentes tipos de raycast baseados no item
+    if (this.selectedItem.type.startsWith('lamp_')) {
+      // Lâmpadas modernas são instaladas onde o jogador está apontando
+      const targetPosition = this.getLampTargetPosition();
+      if (targetPosition) {
+        this.placeLampAtPosition(targetPosition);
+      } else {
+        console.warn('⚠️ Aponte para um local válido para instalar a lâmpada');
+      }
     } else {
+      // Janelas e portas são colocadas em paredes
+      const wallIntersection = this.performWallRaycast();
+      if (wallIntersection) {
+        this.placeItemAtIntersection(wallIntersection);
+      } else {
+        console.warn('⚠️ Aponte para uma parede para colocar este item');
+      }
     }
   }
 
@@ -1521,6 +1984,317 @@ export class WalkBuildModeSystem {
     return null;
   }
 
+  /**
+   * Raycast para detectar o chão
+   */
+  performFloorRaycast() {
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2(0, 0); // Centro da tela (crosshair)
+    
+    // Verificar se a câmera walk está disponível
+    if (!this.walkCamera) {
+      console.error('❌ Câmera walk não está disponível para raycast');
+      return null;
+    }
+    
+    // Configurar raycaster a partir da câmera walk
+    raycaster.setFromCamera(mouse, this.walkCamera);
+    
+    // Buscar chão da sala
+    const floorObjects = [];
+    
+    // Tentar múltiplas fontes de chão
+    if (window.roomConfigSystem?.roomElements?.floor) {
+      floorObjects.push(window.roomConfigSystem.roomElements.floor);
+    }
+    
+    // Fallback: buscar diretamente no roomModeSystem
+    if (floorObjects.length === 0 && this.roomModeSystem?.roomFloor) {
+      floorObjects.push(this.roomModeSystem.roomFloor);
+    }
+    
+    // Fallback: buscar na cena por objetos com userData.isFloor
+    if (floorObjects.length === 0) {
+      this.scene.traverse((child) => {
+        if (child.isMesh && (child.userData.isFloor || child.name?.toLowerCase().includes('floor'))) {
+          floorObjects.push(child);
+        }
+      });
+    }
+
+    if (floorObjects.length === 0) {
+      console.warn('⚠️ Nenhum chão encontrado para raycast');
+      return null;
+    }
+
+    console.log(`🎯 Raycast no chão: ${floorObjects.length} objetos de chão`);
+
+    // Realizar raycast
+    const intersections = raycaster.intersectObjects(floorObjects, false);
+    
+    if (intersections.length > 0) {
+      const intersection = intersections[0];
+      console.log(`✅ Chão atingido na posição:`, intersection.point);
+      return intersection;
+    }
+
+    return null;
+  }
+
+  /**
+   * Colocar lâmpada na posição
+   */
+  placeLampAtPosition(position) {
+    if (!this.lightingSystem) {
+      console.error('❌ Sistema de iluminação não disponível');
+      return;
+    }
+
+    // Gerar ID único para a lâmpada
+    const lampId = `lamp_${Date.now()}`;
+    
+    // Determinar tipo da lâmpada baseado na seleção
+    const lampType = this.selectedItem.type === 'lamp_warm' ? 'warm' : 'cool';
+    
+    console.log(`💡 Colocando lâmpada '${lampId}' do tipo '${lampType}' apontando para:`, position);
+    
+    // Detectar superfície onde o jogador está apontando (parede ou teto)
+    let surfaceData = this.detectLampSurfaceAtPosition(position);
+    
+    // Se não detectou superfície, usar fallback inteligente
+    if (!surfaceData) {
+      console.log('🔧 Não detectou superfície, usando fallback inteligente');
+      
+      // Tentar colocar no teto acima da posição apontada
+      const ceilingPosition = {
+        x: position.x,
+        y: Math.max(position.y + 1.0, 2.5), // Pelo menos 2.5m de altura
+        z: position.z
+      };
+      
+      surfaceData = {
+        surface: 'ceiling',
+        position: ceilingPosition,
+        normal: new THREE.Vector3(0, -1, 0),
+        object: null
+      };
+      
+      console.log('🏠 Usando posição de teto como fallback:', ceilingPosition);
+    }
+    
+    console.log('🔍 Superfície detectada:', surfaceData.surface, 'na posição:', surfaceData.position);
+    
+    // Calcular posição grudada na superfície
+    const lampPosition = this.calculateSurfaceLampPosition(surfaceData);
+    
+    console.log('📍 Posição final da lâmpada (grudada na superfície):', lampPosition);
+    
+    // Criar lâmpada grudada na superfície com sistema de rebatimento
+    const lampGroup = this.lightingSystem.createLamp(lampId, lampPosition, lampType, surfaceData.surface);
+
+    if (lampGroup) {
+      console.log(`✅ Lâmpada '${lampId}' instalada na ${surfaceData.surface === 'ceiling' ? 'teto' : 'parede'}`);
+      
+      // Feedback visual
+      const typeText = lampType === 'warm' ? 'quente (2700K)' : 'fria (6000K)';
+      const surfaceText = surfaceData.surface === 'ceiling' ? 'teto' : 'parede';
+      console.log(`💡✨ Lâmpada LED ${typeText} instalada na ${surfaceText} com rebatimento`);
+      
+      // Desselecionar item do inventário após colocação bem-sucedida
+      if (this.selectedSlot !== null) {
+        this.selectInventorySlot(null);
+      }
+    } else {
+      console.error(`❌ Falha ao instalar lâmpada na superfície`);
+    }
+  }
+
+  /**
+   * Detectar superfície adequada para instalação de lâmpada
+   */
+  /**
+   * Detectar superfície (parede ou teto) onde o jogador está apontando
+   */
+  detectLampSurfaceAtPosition(targetPosition) {
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), this.walkCamera);
+    raycaster.far = 15.0; // Alcance maior
+    
+    // Obter todos os objetos possíveis para raycast
+    const allObjects = [];
+    
+    // Adicionar objetos da sala
+    try {
+      const roomObjects = this.getRoomObjects();
+      if (roomObjects && roomObjects.length > 0) {
+        allObjects.push(...roomObjects);
+      }
+    } catch (e) {
+      console.log('⚠️ Não foi possível obter objetos da sala:', e.message);
+    }
+    
+    // Adicionar todos os objetos da cena como fallback
+    this.scene.traverse((child) => {
+      if (child.isMesh && child.geometry && child.material) {
+        // Ignorar lâmpadas existentes
+        if (!child.userData.isLamp && !child.userData.lampId) {
+          allObjects.push(child);
+        }
+      }
+    });
+    
+    console.log(`🔍 Raycast detectou ${allObjects.length} objetos para teste`);
+    
+    const intersects = raycaster.intersectObjects(allObjects, false);
+    console.log(`🔍 Encontradas ${intersects.length} intersecções`);
+    
+    for (let i = 0; i < intersects.length; i++) {
+      const intersection = intersects[i];
+      
+      console.log(`🔍 Testando intersecção ${i}:`, intersection.object.type, intersection.point);
+      
+      // Verificar se tem face normal
+      if (intersection.face && intersection.face.normal) {
+        const normal = intersection.face.normal.clone();
+        normal.transformDirection(intersection.object.matrixWorld);
+        
+        console.log(`🔍 Normal detectada:`, normal);
+        
+        // Relaxar critérios de detecção
+        if (normal.y < -0.5) {
+          // Normal apontando para baixo = teto (relaxado de -0.7 para -0.5)
+          console.log('✅ Teto detectado!');
+          return {
+            surface: 'ceiling',
+            position: intersection.point,
+            normal: normal,
+            object: intersection.object
+          };
+        } else if (Math.abs(normal.y) < 0.6) {
+          // Normal mais horizontal = parede (relaxado de 0.4 para 0.6)
+          console.log('✅ Parede detectada!');
+          return {
+            surface: 'wall',
+            position: intersection.point,
+            normal: normal,
+            object: intersection.object
+          };
+        }
+        
+        console.log(`⚠️ Normal não é parede nem teto: y=${normal.y}`);
+      } else {
+        console.log('⚠️ Intersecção sem face normal');
+      }
+    }
+    
+    console.log('❌ Nenhuma superfície válida detectada');
+    return null;
+  }
+
+  /**
+   * Calcular posição da lâmpada grudada na superfície
+   */
+  calculateSurfaceLampPosition(surfaceData) {
+    const { surface, position, normal } = surfaceData;
+    const offset = 0.1; // Distância da superfície
+    
+    if (surface === 'ceiling') {
+      // Grudar no teto, ligeiramente abaixo
+      return {
+        x: position.x,
+        y: position.y - offset,
+        z: position.z
+      };
+    } else if (surface === 'wall') {
+      // Grudar na parede, ligeiramente à frente
+      return {
+        x: position.x + normal.x * offset,
+        y: position.y,
+        z: position.z + normal.z * offset
+      };
+    }
+    
+    // Fallback
+    return position;
+  }
+
+  /**
+   * Obter posição onde o jogador está apontando para colocar lâmpada
+   */
+  getLampTargetPosition() {
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), this.walkCamera);
+    raycaster.far = 8.0; // Alcance máximo para colocar lâmpada
+    
+    // Obter todos os objetos da sala para raycast
+    const roomObjects = this.getRoomObjects();
+    const intersects = raycaster.intersectObjects(roomObjects, true);
+    
+    if (intersects.length > 0) {
+      // Usar a primeira intersecção válida
+      const intersection = intersects[0];
+      console.log('🎥 Posição apontada detectada:', intersection.point);
+      console.log('🎥 Objeto detectado:', intersection.object.type || intersection.object.constructor.name);
+      return intersection.point;
+    }
+    
+    // Fallback: usar posição à frente do jogador
+    const playerPosition = this.walkCamera.position.clone();
+    const direction = new THREE.Vector3();
+    this.walkCamera.getWorldDirection(direction);
+    
+    const targetPosition = playerPosition.clone().add(direction.multiplyScalar(3.0));
+    console.log('🎥 Usando posição fallback à frente:', targetPosition);
+    console.log('🔍 Objetos encontrados para raycast:', roomObjects.length);
+    console.log('🔍 Posição da câmera:', playerPosition);
+    console.log('🔍 Direção da câmera:', direction);
+    return targetPosition;
+  }
+
+  detectLampInstallationSurface(position) {
+    if (!this.lightingSystem) {
+      // Fallback para posição padrão no teto
+      return {
+        surface: 'ceiling',
+        position: { x: position.x, y: 2.8, z: position.z },
+        normal: new THREE.Vector3(0, -1, 0)
+      };
+    }
+    
+    // Tentar detectar teto primeiro (olhando para cima)
+    const upDirection = new THREE.Vector3(0, 1, 0);
+    const ceilingData = this.lightingSystem.detectInstallationSurface(position, upDirection);
+    
+    if (ceilingData && ceilingData.surface === 'ceiling') {
+      console.log('✅ Teto detectado para instalação da lâmpada');
+      return ceilingData;
+    }
+    
+    // Se não há teto, tentar paredes (olhando nas direções cardinais)
+    const directions = [
+      new THREE.Vector3(1, 0, 0),   // Direita
+      new THREE.Vector3(-1, 0, 0),  // Esquerda
+      new THREE.Vector3(0, 0, 1),   // Frente
+      new THREE.Vector3(0, 0, -1)   // Trás
+    ];
+    
+    for (const direction of directions) {
+      const wallData = this.lightingSystem.detectInstallationSurface(position, direction);
+      if (wallData && wallData.surface === 'wall') {
+        console.log('✅ Parede detectada para instalação da lâmpada');
+        return wallData;
+      }
+    }
+    
+    // Fallback para posição padrão no teto se nada foi detectado
+    console.log('⚠️ Usando posição padrão no teto (altura 2.8)');
+    return {
+      surface: 'ceiling',
+      position: { x: position.x, y: 2.8, z: position.z },
+      normal: new THREE.Vector3(0, -1, 0)
+    };
+  }
+
   placeItemAtIntersection(intersection) {
     const worldPoint = intersection.point;
     const wallObject = intersection.object;
@@ -1541,6 +2315,11 @@ export class WalkBuildModeSystem {
         break;
       case 'door':
         this.placeDoor(wallName, localCoords);
+        break;
+      case 'lamp_warm':
+      case 'lamp_cool':
+        // Lâmpadas são tratadas em placeLampAtPosition
+        console.warn('⚠️ Lâmpadas devem ser colocadas no chão, não na parede');
         break;
       case 'light':
         this.placeLight(worldPoint);
@@ -1716,16 +2495,38 @@ export class WalkBuildModeSystem {
   }
 
   selectDoorForEditing(doorId) {
+    console.log(`🎯 Selecionando porta para edição: ${doorId}`);
+    
     // Desselecionar porta anterior se houver
     this.deselectDoor();
     
+    // Verificar se a porta existe
+    if (!this.doorExists(doorId)) {
+      console.error(`❌ Porta '${doorId}' não encontrada`);
+      return;
+    }
+    
     // Selecionar nova porta
     this.selectedDoor = doorId;
-    this.createDoorOutline(doorId);
+    
+    // Criar outline com verificação de sucesso
+    const outlineCreated = this.createDoorOutline(doorId);
+    if (!outlineCreated) {
+      console.warn(`⚠️ Falha ao criar outline para porta '${doorId}'`);
+      // Tentar método alternativo
+      this.createAlternativeDoorHighlight(doorId);
+    }
+    
     this.showDoorEditingUI();
+    
+    console.log(`✅ Porta '${doorId}' selecionada com sucesso`);
   }
 
   deselectDoor() {
+    if (this.selectedDoor) {
+      console.log(`🚫 Desselecionando porta: ${this.selectedDoor}`);
+    }
+    
     // Cancelar drag se estiver ativo
     if (this.isDraggingDoor) {
       this.cancelDoorDrag();
@@ -1841,129 +2642,144 @@ export class WalkBuildModeSystem {
     }
   }
 
-  // Detectar clique em porta para seleção
+  // Detectar clique em porta para seleção (OTIMIZADO)
   detectDoorClick(intersectedMesh) {
-    
     if (!window.doorControls) {
       console.error('❌ doorControls não disponível');
       return false;
     }
 
+    let foundDoorId = null;
+
+    // MÉTODO 1: Verificação direta via userData (mais rápida)
+    if (intersectedMesh.userData && intersectedMesh.userData.doorId) {
+      foundDoorId = intersectedMesh.userData.doorId;
+      console.log(`🎯 Porta encontrada via userData.doorId: ${foundDoorId}`);
+    }
+    // MÉTODO 2: Verificar userData.id também
+    else if (intersectedMesh.userData && intersectedMesh.userData.id) {
+      // Verificar se é uma porta válida
+      const doors = window.doorControls ? window.doorControls.list() : [];
+      if (doors.some(door => door.id === intersectedMesh.userData.id)) {
+        foundDoorId = intersectedMesh.userData.id;
+        console.log(`🎯 Porta encontrada via userData.id: ${foundDoorId}`);
+      }
+    }
+    // MÉTODO 3: Busca via spatial hash (se userData falhar)
+    else if (this.doorSpatialHash && this.doorSpatialHash.size > 0) {
+      for (const [doorId, doorData] of this.doorSpatialHash) {
+        if (doorData.meshes && doorData.meshes.includes(intersectedMesh)) {
+          foundDoorId = doorId;
+          break;
+        }
+      }
+    }
+    // MÉTODO 4: Busca por hierarquia de objetos (último recurso)
+    else {
+      let currentObject = intersectedMesh;
+      let depth = 0;
+      while (currentObject.parent && depth < 3) {
+        currentObject = currentObject.parent;
+        depth++;
+        if (currentObject.userData && currentObject.userData.doorId) {
+          foundDoorId = currentObject.userData.doorId;
+          break;
+        }
+      }
+    }
+
+    if (foundDoorId) {
+      return this.processDoorClick(foundDoorId);
+    }
+
+    // Se não encontrou porta, pode ser que o cache esteja desatualizado
+    console.log('🚪❓ Porta não detectada - verificando se há portas novas...');
+    this.checkForNewDoors();
+    
+    // Tentar uma segunda vez com cache atualizado
+    if (intersectedMesh.userData && (intersectedMesh.userData.doorId || intersectedMesh.userData.isDoor)) {
+      foundDoorId = intersectedMesh.userData.doorId || intersectedMesh.userData.id;
+      if (foundDoorId && this.doorExists(foundDoorId)) {
+        console.log(`🚪🔄 Porta encontrada após atualização de cache: ${foundDoorId}`);
+        return this.processDoorClick(foundDoorId);
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Processar clique na porta (duplo clique vs seleção)
+   */
+  processDoorClick(doorId) {
+    const currentTime = Date.now();
+    const timeSinceLastClick = currentTime - this.lastClickTime;
+    const isSameDoor = this.lastClickedDoor === doorId;
+    const isDoubleClick = timeSinceLastClick < this.doubleClickDelay && isSameDoor;
+    
+    // Log apenas para duplos cliques para reduzir spam
+    if (isDoubleClick) {
+      console.log(`🚪🚪 DUPLO CLIQUE detectado em ${doorId}`);
+    }
+    
+    if (isDoubleClick) {
+      // Duplo clique - abrir/fechar porta
+      console.log(`🚪🚪 DUPLO CLIQUE detectado - abrindo/fechando porta ${doorId}`);
+      this.toggleDoor(doorId);
+      this.lastClickTime = 0;
+      this.lastClickedDoor = null;
+    } else {
+      // Clique simples - selecionar para edição
+      console.log(`🚪 Clique simples - selecionando porta ${doorId}`);
+      
+      // Verificar se a porta existe antes de tentar selecionar
+      if (this.doorExists(doorId)) {
+        this.selectDoorForEditing(doorId);
+        this.lastClickTime = currentTime;
+        this.lastClickedDoor = doorId;
+      } else {
+        console.error(`❌ Porta '${doorId}' não existe - não é possível selecionar`);
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Verificar se ponto está dentro dos bounds
+   */
+  isPointInBounds(point, bounds, tolerance = 0.5) {
+    return point.x >= bounds.min.x - tolerance &&
+           point.x <= bounds.max.x + tolerance &&
+           point.y >= bounds.min.y - tolerance &&
+           point.y <= bounds.max.y + tolerance &&
+           point.z >= bounds.min.z - tolerance &&
+           point.z <= bounds.max.z + tolerance;
+  }
+
+  /**
+   * Método fallback para detecção de porta (compatibilidade)
+   */
+  detectDoorClickFallback(intersectedMesh) {
     const doors = window.doorControls.list();
     
     for (const door of doors) {
-      
       let doorFound = false;
-      let foundDoorId = null;
       
-      // MÉTODO 1: Verificar userData.doorId no mesh
-      if (intersectedMesh.userData && intersectedMesh.userData.doorId === door.id) {
-        doorFound = true;
-        foundDoorId = door.id;
-      }
-      
-      // MÉTODO 2: Verificar userData.id no mesh
-      if (!doorFound && intersectedMesh.userData && intersectedMesh.userData.id === door.id) {
-        doorFound = true;
-        foundDoorId = door.id;
-      }
-      
-      // MÉTODO 3: Verificar se o mesh é filho de um grupo com doorId
-      if (!doorFound) {
-        let currentObject = intersectedMesh;
-        let depth = 0;
-        while (currentObject.parent && depth < 10) { // Limite de profundidade
-          currentObject = currentObject.parent;
-          depth++;
-          if (currentObject.userData) {
-            if (currentObject.userData.doorId === door.id || currentObject.userData.id === door.id) {
-              doorFound = true;
-              foundDoorId = door.id;
-              break;
-            }
-          }
+      // Verificar se o mesh é filho de um grupo com doorId
+      let currentObject = intersectedMesh;
+      let depth = 0;
+      while (currentObject.parent && depth < 5) { // Reduzir profundidade
+        currentObject = currentObject.parent;
+        depth++;
+        if (currentObject.userData && 
+            (currentObject.userData.doorId === door.id || currentObject.userData.id === door.id)) {
+          doorFound = true;
+          break;
         }
       }
       
-      // MÉTODO 4: Verificar por nome do mesh
-      if (!doorFound && intersectedMesh.name && intersectedMesh.name.includes(door.id)) {
-        doorFound = true;
-        foundDoorId = door.id;
-      }
-      
-      // Se encontrou a porta, verificar se é duplo clique
       if (doorFound) {
-        const currentTime = Date.now();
-        const timeSinceLastClick = currentTime - this.lastClickTime;
-        const isSameDoor = this.lastClickedDoor === foundDoorId;
-        const isDoubleClick = timeSinceLastClick < this.doubleClickDelay && isSameDoor;
-        
-        
-        if (isDoubleClick) {
-          // Duplo clique - abrir/fechar porta
-          this.toggleDoor(foundDoorId);
-          // Reset completo para evitar problemas
-          this.lastClickTime = 0;
-          this.lastClickedDoor = null;
-        } else {
-          // Clique simples - selecionar para edição
-          this.selectDoorForEditing(foundDoorId);
-          // Armazenar dados para próximo clique
-          this.lastClickTime = currentTime;
-          this.lastClickedDoor = foundDoorId;
-        }
-        return true;
-      }
-      
-      // MÉTODO 3: Buscar por posição próxima (mais tolerante)
-      const meshWorldPos = new THREE.Vector3();
-      intersectedMesh.getWorldPosition(meshWorldPos);
-      const doorPos = this.getDoorWorldPosition(door);
-      
-      if (doorPos) {
-        const distance = meshWorldPos.distanceTo(doorPos);
-        
-        if (distance < 2.0) { // Aumentar tolerância
-          this.selectDoorForEditing(door.id);
-          return true;
-        }
-      }
-      
-      // MÉTODO 4: Verificar por nome do mesh (se contém o ID da porta)
-      if (intersectedMesh.name && intersectedMesh.name.includes(door.id)) {
-        this.selectDoorForEditing(door.id);
-        return true;
-      }
-    }
-    
-    
-    // FALLBACK: Tentar detectar qualquer porta próxima baseado apenas na posição
-    const meshWorldPos = new THREE.Vector3();
-    intersectedMesh.getWorldPosition(meshWorldPos);
-    
-    for (const door of doors) {
-      const doorPos = this.getDoorWorldPosition(door);
-      if (doorPos) {
-        const distance = meshWorldPos.distanceTo(doorPos);
-        
-        if (distance < 3.0) { // Tolerância ainda maior
-          
-          const currentTime = Date.now();
-          const timeSinceLastClick = currentTime - this.lastClickTime;
-          const isSameDoor = this.lastClickedDoor === door.id;
-          const isDoubleClick = timeSinceLastClick < this.doubleClickDelay && isSameDoor;
-          
-          if (isDoubleClick) {
-            this.toggleDoor(door.id);
-            this.lastClickTime = 0;
-            this.lastClickedDoor = null;
-          } else {
-            this.selectDoorForEditing(door.id);
-            this.lastClickTime = currentTime;
-            this.lastClickedDoor = door.id;
-          }
-          return true;
-        }
+        return this.processDoorClick(door.id);
       }
     }
     
@@ -2679,27 +3495,241 @@ export class WalkBuildModeSystem {
   }
 
   createDoorOutline(doorId) {
+    console.log(`🔮 Criando outline para porta: ${doorId}`);
+    
     this.removeDoorOutline();
 
-    if (!window.doorWindowSystem?.doors?.has(doorId)) return;
+    // Verificar múltiplas fontes para encontrar a porta
+    let doorData = null;
+    
+    // Método 1: doorWindowSystem
+    if (window.doorWindowSystem?.doors?.has(doorId)) {
+      doorData = window.doorWindowSystem.doors.get(doorId);
+      console.log(`📍 Porta encontrada via doorWindowSystem:`, doorData);
+    }
+    // Método 2: doorControls.list()
+    else if (window.doorControls) {
+      const doors = window.doorControls.list();
+      const foundDoor = doors.find(d => d.id === doorId);
+      if (foundDoor) {
+        console.log(`📍 Porta encontrada via doorControls:`, foundDoor);
+        // Tentar encontrar o objeto 3D da porta
+        doorData = this.findDoorObjectInScene(doorId);
+      }
+    }
+    
+    if (!doorData || !doorData.group) {
+      console.warn(`⚠️ Dados da porta '${doorId}' não encontrados ou grupo ausente`);
+      return false;
+    }
 
-    const doorData = window.doorWindowSystem.doors.get(doorId);
-    if (!doorData.group) return;
+    try {
+      // Criar outline roxo ao redor da porta
+      this.doorOutlineMesh = new THREE.BoxHelper(doorData.group, 0x00FF00); // Verde brilhante para maior visibilidade
+      this.doorOutlineMesh.material.linewidth = 6; // Linha mais espessa
+      this.doorOutlineMesh.material.transparent = true;
+      this.doorOutlineMesh.material.opacity = 1.0; // Opacidade total
+      this.doorOutlineMesh.userData.isDoorOutline = true;
+      this.scene.add(this.doorOutlineMesh);
+      
+      console.log(`✅ Outline criado com sucesso para porta '${doorId}'`);
+      return true;
+      
+    } catch (error) {
+      console.error(`❌ Erro ao criar outline:`, error);
+      return false;
+    }
+  }
 
-    // Criar outline roxo ao redor da porta
-    this.doorOutlineMesh = new THREE.BoxHelper(doorData.group, 0x8A2BE2); // Cor roxa
-    this.doorOutlineMesh.material.linewidth = 4;
-    this.doorOutlineMesh.material.transparent = true;
-    this.doorOutlineMesh.material.opacity = 0.8;
-    this.scene.add(this.doorOutlineMesh);
+  /**
+   * Detectar mudanças no número de portas e invalidar cache se necessário
+   */
+  checkForNewDoors() {
+    let currentDoorCount = 0;
+    const doorIds = new Set();
+    
+    // Contar portas via doorControls
+    if (window.doorControls) {
+      try {
+        const doors = window.doorControls.list();
+        currentDoorCount += doors.length;
+        doors.forEach(door => doorIds.add(door.id));
+      } catch (error) {
+        console.warn('Erro ao acessar doorControls:', error);
+      }
+    }
+    
+    // Contar portas via doorWindowSystem
+    if (window.doorWindowSystem?.doors) {
+      const systemDoors = Array.from(window.doorWindowSystem.doors.keys());
+      systemDoors.forEach(id => doorIds.add(id));
+      currentDoorCount = Math.max(currentDoorCount, doorIds.size);
+    }
+    
+    // Verificar se o número mudou
+    if (currentDoorCount !== this.performanceCache.lastDoorCount) {
+      const difference = currentDoorCount - this.performanceCache.lastDoorCount;
+      console.log(`🚪🔄 Mudança detectada: ${difference > 0 ? '+' : ''}${difference} portas (total: ${currentDoorCount})`);
+      
+      // Invalidar cache quando há mudança
+      this.invalidateCacheForNewDoors();
+      this.performanceCache.lastDoorCount = currentDoorCount;
+      
+      // Atualizar spatial hash se há novas portas
+      if (difference > 0) {
+        console.log('🚪✨ Atualizando cache para incluir novas portas...');
+        this.refreshDoorCache();
+      }
+    }
+  }
+  
+  /**
+   * Invalidar cache especificamente para mudanças de portas
+   */
+  invalidateCacheForNewDoors() {
+    this.performanceCache.doorMeshes = null;
+    this.performanceCache.buildableObjects = null;
+    this.performanceCache.isValid = false;
+    
+    // Limpar spatial hash para forçar reconstrução
+    if (this.doorSpatialHash) {
+      this.doorSpatialHash.clear();
+    }
+    
+    // Limpar cache de raycast
+    this._raycastCache = null;
+    
+    // Limpar cache de mesh mapping
+    if (this._meshToRoomObjectCache) {
+      this._meshToRoomObjectCache.clear();
+    }
+    
+    console.log('🔄 Cache invalidado devido a mudanças nas portas');
+  }
+  
+  /**
+   * Atualizar cache de portas forçadamente
+   */
+  refreshDoorCache() {
+    // Forçar atualização do cache de portas
+    const { doorObjects, spatialHash } = this.getOptimizedDoorObjects();
+    this.doorSpatialHash = spatialHash;
+    this.performanceCache.doorMeshes = doorObjects;
+    
+    // Log das novas portas encontradas
+    const doorIds = Array.from(spatialHash.keys());
+    console.log(`🚪📋 Cache de portas atualizado: [${doorIds.join(', ')}]`);
+    
+    return doorObjects;
+  }
 
+  /**
+   * Verificar se porta existe em qualquer sistema
+   */
+  doorExists(doorId) {
+    // Verificar no doorWindowSystem
+    if (window.doorWindowSystem?.doors?.has(doorId)) {
+      return true;
+    }
+    
+    // Verificar no doorControls
+    if (window.doorControls) {
+      const doors = window.doorControls.list();
+      return doors.some(door => door.id === doorId);
+    }
+    
+    return false;
+  }
+
+  /**
+   * Encontrar objeto da porta na cena
+   */
+  findDoorObjectInScene(doorId) {
+    let foundGroup = null;
+    
+    this.scene.traverse((child) => {
+      if (child.userData && child.userData.doorId === doorId) {
+        // Encontrar o grupo pai da porta
+        let current = child;
+        while (current.parent && current.parent !== this.scene) {
+          current = current.parent;
+          if (current.userData && current.userData.doorId === doorId) {
+            foundGroup = current;
+            break;
+          }
+        }
+        if (!foundGroup) foundGroup = child;
+      }
+    });
+    
+    return foundGroup ? { group: foundGroup } : null;
+  }
+
+  /**
+   * Método alternativo de highlight usando material
+   */
+  createAlternativeDoorHighlight(doorId) {
+    console.log(`🌈 Tentando highlight alternativo para porta '${doorId}'`);
+    
+    // Encontrar meshes da porta na cena
+    const doorMeshes = [];
+    this.scene.traverse((child) => {
+      if (child.isMesh && child.userData && child.userData.doorId === doorId) {
+        doorMeshes.push(child);
+      }
+    });
+    
+    if (doorMeshes.length > 0) {
+      // Aplicar highlight por material
+      doorMeshes.forEach(mesh => {
+        if (mesh.material) {
+          // Guardar material original
+          if (!mesh.userData.originalMaterial) {
+            mesh.userData.originalMaterial = mesh.material;
+          }
+          
+          // Criar material de highlight
+          const highlightMaterial = mesh.material.clone();
+          highlightMaterial.emissive.setHex(0x004400); // Verde escuro emissivo
+          highlightMaterial.emissiveIntensity = 0.3;
+          mesh.material = highlightMaterial;
+          
+          // Marcar para remoção posterior
+          mesh.userData.hasHighlight = true;
+        }
+      });
+      
+      console.log(`✅ Highlight alternativo aplicado em ${doorMeshes.length} meshes`);
+      return true;
+    }
+    
+    return false;
   }
 
   removeDoorOutline() {
+    // Remover outline BoxHelper
     if (this.doorOutlineMesh) {
       this.scene.remove(this.doorOutlineMesh);
       this.doorOutlineMesh = null;
     }
+    
+    // Remover highlight alternativo
+    this.removeAlternativeHighlight();
+  }
+
+  /**
+   * Remover highlight alternativo dos materiais
+   */
+  removeAlternativeHighlight() {
+    this.scene.traverse((child) => {
+      if (child.isMesh && child.userData.hasHighlight) {
+        if (child.userData.originalMaterial) {
+          child.material = child.userData.originalMaterial;
+          delete child.userData.originalMaterial;
+        }
+        delete child.userData.hasHighlight;
+      }
+    });
   }
 
   createDoorPreview(mode) {
@@ -3099,89 +4129,97 @@ export class WalkBuildModeSystem {
   }
 
   /**
-   * Corrigir materiais das portas para garantir que não fiquem transparentes
+   * Corrigir materiais das portas de forma otimizada (UMA VEZ)
    */
-  fixDoorMaterials() {
-    
+  fixDoorMaterialsOnce() {
     let portasCorrigidas = 0;
     
-    // Método 1: Verificar portas do sistema doorWindowSystem
-    if (window.doorWindowSystem && window.doorWindowSystem.doors) {
-      for (const [id, door] of window.doorWindowSystem.doors) {
-        if (door.leaf) {
-          this.forceOpaqueMaterial(door.leaf, `Folha da porta '${id}'`);
-          portasCorrigidas++;
-        }
-        
-        if (door.frame) {
-          door.frame.traverse((child) => {
-            if (child.isMesh) {
-              this.forceOpaqueMaterial(child, `Batente da porta '${id}'`);
-            }
-          });
-        }
-        
-        if (door.group) {
-          door.group.traverse((child) => {
-            if (child.isMesh) {
-              this.forceOpaqueMaterial(child, `Grupo da porta '${id}'`);
+    // Usar cache otimizado em vez de traverse
+    if (this.performanceCache.doorMeshes) {
+      this.performanceCache.doorMeshes.forEach(mesh => {
+        this.forceOpaqueMaterialOptimized(mesh, `Porta em cache`);
+        portasCorrigidas++;
+      });
+    } else {
+      // Fallback: método direto via sistema de portas
+      if (window.doorWindowSystem && window.doorWindowSystem.doors) {
+        for (const [id, door] of window.doorWindowSystem.doors) {
+          [door.leaf, door.frame, door.group].forEach(component => {
+            if (component) {
+              component.traverse((child) => {
+                if (child.isMesh) {
+                  this.forceOpaqueMaterialOptimized(child, `Componente da porta ${id}`);
+                  portasCorrigidas++;
+                }
+              });
             }
           });
         }
       }
     }
-    
-    // Método 2: Busca AGRESSIVA na cena inteira
-    this.scene.traverse((object) => {
-      if (object.isMesh && object.material) {
-        // Verificar se é porta por userData
-        if (object.userData && (object.userData.isDoor || object.userData.doorId)) {
-          this.forceOpaqueMaterial(object, `Porta na cena: ${object.userData.doorId || 'sem ID'}`);
-          portasCorrigidas++;
-        }
-        
-        // Verificar se parece ser uma porta (cor marrom típica de madeira)
-        if (object.material.color && object.material.color.getHex() === 0x654321) {
-          this.forceOpaqueMaterial(object, 'Material cor de madeira (possível porta)');
-          portasCorrigidas++;
-        }
+  }
+
+  /**
+   * Garantir opacidade uma vez (sem loop contínuo)
+   */
+  ensureDoorOpacityOnce() {
+    if (window.doorWindowSystem && window.doorWindowSystem.doors) {
+      for (const [id, door] of window.doorWindowSystem.doors) {
+        [door.leaf, door.frame, door.group].forEach(component => {
+          if (component) {
+            component.traverse((child) => {
+              if (child.isMesh && child.material) {
+                const materials = Array.isArray(child.material) ? child.material : [child.material];
+                materials.forEach(material => {
+                  if (material) {
+                    material.transparent = false;
+                    material.opacity = 1.0;
+                    material.needsUpdate = true;
+                  }
+                });
+              }
+            });
+          }
+        });
       }
-    });
-    
-    
-    // Executar novamente após um delay para garantir
-    setTimeout(() => {
-      this.forceAllDoorOpacity();
-    }, 1000);
+    }
   }
   
   /**
-   * Forçar material completamente opaco
+   * Forçar material completamente opaco (método otimizado)
    */
-  forceOpaqueMaterial(object, description) {
+  forceOpaqueMaterialOptimized(object, description) {
     if (!object || !object.material) return;
     
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     
     materials.forEach((material, index) => {
       if (material) {
-        const wasTransparent = material.transparent || material.opacity < 1.0;
-        
-        // FORÇA BRUTA - garantir opacidade total
-        material.transparent = false;
-        material.opacity = 1.0;
-        material.alphaTest = 0;
-        material.alphaMap = null;
-        material.side = THREE.DoubleSide;
-        material.needsUpdate = true;
-        
-        // Forçar render do material
-        material.version++;
-        
-        if (wasTransparent) {
+        // Otimizar para reduzir shader recompilations
+        if (material.transparent || material.opacity < 1.0) {
+          material.transparent = false;
+          material.opacity = 1.0;
+          material.alphaTest = 0;
+          material.alphaMap = null;
+          
+          // Reutilizar materiais quando possível para reduzir texturas
+          if (material.map && material.map.image) {
+            // Limitar número de texturas únicas
+            material.map.generateMipmaps = false;
+            material.map.minFilter = THREE.LinearFilter;
+          }
+          
+          material.needsUpdate = true;
         }
       }
     });
+  }
+
+  /**
+   * Método legacy mantido para compatibilidade
+   */
+  forceOpaqueMaterial(object, description) {
+    return this.forceOpaqueMaterialOptimized(object, description);
   }
   
   /**
@@ -3229,92 +4267,99 @@ export class WalkBuildModeSystem {
   }
   
   /**
-   * Monitoramento contínuo da opacidade das portas
+   * Verificação pontual de opacidade (apenas quando necessário)
    */
-  startOpacityMonitoring() {
-    if (this.opacityMonitor) {
-      clearInterval(this.opacityMonitor);
+  checkOpacityIfNeeded() {
+    // Só verificar se há indicação de problema
+    if (!this.performanceCache.isValid) {
+      this.ensureDoorOpacityOnce();
+    }
+  }
+
+  /**
+   * Limpar recursos desnecessários (otimizado)
+   */
+  cleanupResources() {
+    const now = Date.now();
+    
+    // Limpar cache baseado em idade E uso
+    const cacheAge = now - this.performanceCache.lastUpdate;
+    const framesSinceUpdate = this.performanceCache.framesSinceUpdate || 0;
+    
+    if (cacheAge > 180000 || framesSinceUpdate > 1000) { // 3 min OU 1000 frames
+      const oldObjectCount = this.performanceCache.objectCount || 0;
+      
+      this.performanceCache.isValid = false;
+      this.performanceCache.buildableObjects = null;
+      this.performanceCache.doorMeshes = null;
+      this.performanceCache.roomObjects = null;
+      
+      if (this.doorSpatialHash) {
+        this.doorSpatialHash.clear();
+      }
+      
+      // Limpar cache de raycast
+      this._raycastCache = null;
+      
+      if (oldObjectCount > 0) {
+        console.log(`🧹 Cache limpo: ${oldObjectCount} objetos, idade: ${Math.round(cacheAge/1000)}s`);
+      }
     }
     
-    this.opacityMonitor = setInterval(() => {
-      if (this.isActive) {
-        this.quickOpacityCheck();
+    // Monitor inteligente de texturas
+    if (window.renderer?.info) {
+      const info = window.renderer.info;
+      const textureCount = info.memory.textures;
+      const geometryCount = info.memory.geometries;
+      
+      if (textureCount > 14) {
+        console.warn(`⚠️ CRÍTICO: ${textureCount}/16 texturas - Otimizando...`);
+        this.optimizeAllMaterials();
       }
-    }, 2000); // Verificar a cada 2 segundos
-  }
-  
-  /**
-   * Parar monitoramento de opacidade
-   */
-  stopOpacityMonitoring() {
-    if (this.opacityMonitor) {
-      clearInterval(this.opacityMonitor);
-      this.opacityMonitor = null;
+      
+      // Stats periódicos (menos spam)
+      if (Math.random() < 0.05) { // 5% chance
+        console.log(`📊 WebGL: ${textureCount}T, ${geometryCount}G, ${info.render.calls}C`);
+      }
+    }
+    
+    // Limpar vector pool se muito grande
+    if (this.vectorPool.vectors.length > 15) {
+      this.vectorPool.vectors.length = 10;
     }
   }
   
   /**
-   * Verificação rápida de opacidade
-   */
-  quickOpacityCheck() {
-    if (window.doorWindowSystem && window.doorWindowSystem.doors) {
-      for (const [id, door] of window.doorWindowSystem.doors) {
-        [door.leaf, door.frame, door.group].forEach(component => {
-          if (component) {
-            component.traverse((child) => {
-              if (child.isMesh && child.material) {
-                const materials = Array.isArray(child.material) ? child.material : [child.material];
-                materials.forEach(material => {
-                  if (material && (material.transparent || material.opacity < 1.0)) {
-                    this.forceOpaqueMaterial(child, `Porta ${id} (monitoramento)`);
-                  }
-                });
-              }
-            });
-          }
-        });
-      }
-    }
-  }
-  
-  /**
-   * Abrir/fechar porta (integração com doorWindowSystem)
+   * Abrir/fechar porta (integração com doorWindowSystem) - OTIMIZADO
    */
   toggleDoor(doorId) {
     if (!window.doorControls) {
       console.error('❌ Sistema doorControls não disponível');
-      return;
+      return false;
     }
     
-    
     try {
-      const doorsBefore = window.doorControls.list();
-      const targetDoor = doorsBefore.find(d => d.id === doorId);
-      
-      if (!targetDoor) {
-        console.error(`❌ Porta '${doorId}' não encontrada na lista`);
-        return;
-      }
-      
-      
       const success = window.doorControls.toggle(doorId);
       
       if (success) {
-        const doorsAfter = window.doorControls.list();
-        const updatedDoor = doorsAfter.find(d => d.id === doorId);
-        
-        // Atualizar painel se estiver visível
-        if (typeof this.refreshWalkModePanel === 'function') {
-          this.refreshWalkModePanel();
-        } else {
-          console.warn('⚠️ refreshWalkModePanel não encontrado, usando refreshDoorsPanel');
-          this.refreshDoorsPanel();
+        // Log apenas em caso de sucesso significativo
+        if (Math.random() < 0.1) { // Log 10% das vezes
+          console.log(`✅ Porta ${doorId} alterada com sucesso`);
         }
+        
+        // Usar debounced update para evitar lag
+        if (this.debouncedUIUpdate) {
+          this.debouncedUIUpdate();
+        }
+        
+        return true;
       } else {
         console.error(`❌ Falha ao alterar estado da porta '${doorId}'`);
+        return false;
       }
     } catch (error) {
       console.error('❌ Erro ao executar toggle:', error);
+      return false;
     }
   }
 
@@ -3358,5 +4403,145 @@ export class WalkBuildModeSystem {
    */
   setMouseSensitivity(sensitivity) {
     this.mouseSensitivity = Math.max(0.0005, Math.min(sensitivity, 0.01)); // Limitar entre 0.0005 e 0.01
+  }
+
+  /**
+   * Cleanup completo para saída do walk mode
+   */
+  performCompleteCleanup() {
+    // Limpar todos os caches
+    this.performanceCache.isValid = false;
+    this.performanceCache.buildableObjects = null;
+    this.performanceCache.doorMeshes = null;
+    this.performanceCache.roomObjects = null;
+    
+    // Limpar spatial hash
+    if (this.doorSpatialHash) {
+      this.doorSpatialHash.clear();
+    }
+    
+    // Limpar caches de raycast e mesh mapping
+    this._raycastCache = null;
+    if (this._meshToRoomObjectCache) {
+      this._meshToRoomObjectCache.clear();
+    }
+    
+    // Devolver todos os vetores ao pool
+    this.vectorPool.vectors.length = 0;
+    
+    // Reset de variáveis de cache
+    this._cachedYaw = null;
+    this._cosYaw = null;
+    this._sinYaw = null;
+    
+    // Cleanup final de recursos
+    this.cleanupResources();
+    
+    console.log('🧹 Cleanup completo do walk mode realizado');
+  }
+
+  /**
+   * Monitorar uso de texturas para prevenir shader errors
+   */
+  monitorTextureUsage() {
+    if (window.renderer && window.renderer.info) {
+      const info = window.renderer.info;
+      const textureCount = info.memory.textures;
+      const geometryCount = info.memory.geometries;
+      
+      if (textureCount > 14) {
+        console.warn(`⚠️ CRÍTICO: Uso alto de texturas ${textureCount}/16 - Limpando...`);
+        this.optimizeAllMaterials();
+      } else if (textureCount > 12) {
+        console.warn(`⚠️ Uso moderado de texturas: ${textureCount}/16`);
+      }
+      
+      // Log periódico para debug
+      if (Math.random() < 0.1) {
+        console.log(`📊 Recursos WebGL: ${textureCount} texturas, ${geometryCount} geometrias`);
+      }
+    }
+  }
+
+  /**
+   * Obter informações de uso de texturas
+   */
+  getTextureInfo() {
+    if (window.renderer && window.renderer.info) {
+      return {
+        textures: window.renderer.info.memory.textures,
+        geometries: window.renderer.info.memory.geometries,
+        programs: window.renderer.info.programs?.length || 0,
+        calls: window.renderer.info.render.calls,
+        triangles: window.renderer.info.render.triangles
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Otimizar todos os materiais para reduzir uso de texturas
+   */
+  optimizeAllMaterials() {
+    let materialsOptimized = 0;
+    const materialCache = new Map();
+    
+    this.scene.traverse((object) => {
+      if (object.isMesh && object.material) {
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        
+        materials.forEach((material) => {
+          if (material && !material._optimized) {
+            // Reutilizar materiais similares
+            const materialKey = this.getMaterialKey(material);
+            if (materialCache.has(materialKey)) {
+              object.material = materialCache.get(materialKey);
+            } else {
+              this.optimizeMaterial(material);
+              material._optimized = true;
+              materialCache.set(materialKey, material);
+              materialsOptimized++;
+            }
+          }
+        });
+      }
+    });
+    
+    console.log(`🔧 Otimizados ${materialsOptimized} materiais, ${materialCache.size} únicos`);
+  }
+
+  /**
+   * Gerar chave única para material
+   */
+  getMaterialKey(material) {
+    return `${material.type}_${material.color?.getHex() || 0}_${material.transparent}_${material.opacity}`;
+  }
+
+  /**
+   * Otimizar material individual
+   */
+  optimizeMaterial(material) {
+    if (!material) return;
+    
+    // Reduzir qualidade de texturas se necessário
+    if (material.map) {
+      material.map.generateMipmaps = false;
+      material.map.minFilter = THREE.LinearFilter;
+      material.map.magFilter = THREE.LinearFilter;
+    }
+    
+    // Simplificar propriedades desnecessárias
+    if (material.normalMap && material.normalMap.image) {
+      // Manter normal maps apenas para objetos importantes
+      if (!material.userData?.important) {
+        material.normalMap = null;
+      }
+    }
+    
+    // Otimizar transparência
+    if (material.transparent && material.opacity >= 0.99) {
+      material.transparent = false;
+      material.opacity = 1.0;
+    }
   }
 }

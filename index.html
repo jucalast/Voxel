@@ -871,8 +871,9 @@
       import('./modules/helpSystem.js'),
       import('./modules/editorLightingSystem.js'),
       import('./modules/hybridInteractionSystem.js'),
+      import('./modules/atmosphereRenderingSystem.js'),
       import('./tutorials/dragObjectsTutorial.js')
-    ]).then(([colorModule, fileUploadModule, referenceModule, mouseModule, roomModule, walkBuildModule, timeModule, tutorialModule, textureModule, roomConfigModule, doorWindowModule, exportModule, voxelSelectionModule, areaFillModule, uploadHistoryModule, helpSystemModule, editorLightingModule, hybridInteractionModule, dragTutorialModule]) => {
+    ]).then(([colorModule, fileUploadModule, referenceModule, mouseModule, roomModule, walkBuildModule, timeModule, tutorialModule, textureModule, roomConfigModule, doorWindowModule, exportModule, voxelSelectionModule, areaFillModule, uploadHistoryModule, helpSystemModule, editorLightingModule, hybridInteractionModule, atmosphereRenderingModule, dragTutorialModule]) => {
       window.ColorSystem = colorModule.ColorSystem;
       window.FileUploadSystem = fileUploadModule.FileUploadSystem;
       window.ReferenceImageSystem = referenceModule.ReferenceImageSystem;
@@ -891,6 +892,7 @@
       window.HelpSystem = helpSystemModule.HelpSystem;
       window.EditorLightingSystem = editorLightingModule.EditorLightingSystem;
       window.HybridInteractionSystem = hybridInteractionModule.HybridInteractionSystem;
+      window.AtmosphereRenderingSystem = atmosphereRenderingModule.AtmosphereRenderingSystem;
       window.dragObjectsTutorial = dragTutorialModule.dragObjectsTutorial;
       
       // Carregar o script principal após módulos estarem prontos
@@ -912,10 +914,15 @@
         <div class="item-name">Porta</div>
       </div>
       <div class="hotbar-slot" data-slot="2">
-        <div class="item-icon">💡</div>
-        <div class="item-name">Luz</div>
+        <div class="item-icon lamp-warm-icon">��💡</div>
+        <div class="item-name">Lâmpada Quente</div>
+        <div class="item-temp">2800K</div>
       </div>
-      <div class="hotbar-slot" data-slot="3"></div>
+      <div class="hotbar-slot" data-slot="3">
+        <div class="item-icon lamp-cool-icon">❄️💡</div>
+        <div class="item-name">Lâmpada Fria</div>
+        <div class="item-temp">6000K</div>
+      </div>
       <div class="hotbar-slot" data-slot="4"></div>
       <div class="hotbar-slot" data-slot="5"></div>
       <div class="hotbar-slot" data-slot="6"></div>

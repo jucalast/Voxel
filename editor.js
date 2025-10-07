@@ -4,22 +4,31 @@
 
 // Aguardar que Three.js, OrbitControls e módulos estejam disponíveis
 function waitForDependencies() {
-  if (typeof THREE === 'undefined' || 
-      typeof OrbitControls === 'undefined' ||
-      typeof ColorSystem === 'undefined' ||
-      typeof ReferenceImageSystem === 'undefined' ||
-      typeof MouseInteractionSystem === 'undefined' ||
-      typeof ExportSystem === 'undefined' ||
-      typeof VoxelSelectionSystem === 'undefined' ||
-      typeof AreaFillSystem === 'undefined' ||
-      typeof UploadHistorySystem === 'undefined' ||
-      typeof HelpSystem === 'undefined' ||
-      typeof EditorLightingSystem === 'undefined' ||
-      typeof HybridInteractionSystem === 'undefined') {
-    console.log('Aguardando dependências...');
+  const dependencies = {
+    'THREE': typeof THREE,
+    'OrbitControls': typeof OrbitControls,
+    'ColorSystem': typeof ColorSystem,
+    'ReferenceImageSystem': typeof ReferenceImageSystem,
+    'MouseInteractionSystem': typeof MouseInteractionSystem,
+    'ExportSystem': typeof ExportSystem,
+    'VoxelSelectionSystem': typeof VoxelSelectionSystem,
+    'AreaFillSystem': typeof AreaFillSystem,
+    'UploadHistorySystem': typeof UploadHistorySystem,
+    'HelpSystem': typeof HelpSystem,
+    'EditorLightingSystem': typeof EditorLightingSystem,
+    'HybridInteractionSystem': typeof HybridInteractionSystem,
+    'AtmosphereRenderingSystem': typeof AtmosphereRenderingSystem
+  };
+  
+  const missingDeps = Object.entries(dependencies).filter(([name, type]) => type === 'undefined');
+  
+  if (missingDeps.length > 0) {
+    console.log('Aguardando dependências...', missingDeps.map(([name]) => name));
     setTimeout(waitForDependencies, 100);
     return;
   }
+  
+  console.log('✅ Todas as dependências carregadas! Inicializando editor...');
   // Dependências carregadas, inicializando editor...
   initEditor();
 }
@@ -266,8 +275,6 @@ function initEditor() {
   }
   // --- End of New Voxel Uploader Logic ---
 
-  // Sistema de IA removido
-
   // =====================================================================
   // CONFIGURAÇÃO DA CENA 3D
   // =====================================================================
@@ -306,41 +313,18 @@ function initEditor() {
     alpha: true 
   });
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.2;
-
-  // Renderer otimizado
-
-  resizeRenderer();
-  window.addEventListener('resize', resizeRenderer);
+  // Inicializar sistema de atmosfera e renderização
+  const atmosphereRenderingSystem = new AtmosphereRenderingSystem();
+  window.atmosphereRenderingSystem = atmosphereRenderingSystem;
 
   // Inicializar sistema de iluminação do editor
   editorLightingSystem.init();
-
-  function resizeRenderer() {
-    const container = document.getElementById('three-container');
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-    
-    renderer.setSize(width, height);
-    
-    const newAspect = width / height;
-    camera.left = -size * newAspect;
-    camera.right = size * newAspect;
-    camera.updateProjectionMatrix();
-  }
 
 
   // =====================================================================
   // CONTROLES DE CÂMERA E GRADE
   // =====================================================================
 
-  // Sistema de modos de câmera (REMOVIDO - botão removido)
-  // let cameraMode = 'orbit'; // 'orbit' ou 'walk'
   let walkBuildModeSystem;
 
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -391,7 +375,6 @@ function initEditor() {
   gridHelper.material.opacity = 0.4;
   gridHelper.material.transparent = true;
   scene.add(gridHelper);
-  // Grid configurado na cena
 
   // Plano invisível para detecção de cliques
   const planeGeometry = new THREE.PlaneGeometry(50, 50);
@@ -404,26 +387,6 @@ function initEditor() {
   groundPlane.position.y = -0.5;
   groundPlane.receiveShadow = true;
   scene.add(groundPlane);
-
-  // Partículas atmosféricas
-  const particleGeometry = new THREE.BufferGeometry();
-  const particleCount = 100;
-  const positions = new Float32Array(particleCount * 3);
-
-  for (let i = 0; i < particleCount * 3; i++) {
-    positions[i] = (Math.random() - 0.5) * 100;
-  }
-
-  particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const particleMaterial = new THREE.PointsMaterial({
-    color: 0x666699,
-    size: 0.5,
-    transparent: true,
-    opacity: 0.1
-  });
-
-  const particles = new THREE.Points(particleGeometry, particleMaterial);
-  scene.add(particles);
 
   // =====================================================================
   // SISTEMA DE INTERAÇÃO DE MOUSE
@@ -770,11 +733,7 @@ function initEditor() {
     }
   });
 
-  // Event listeners da IA removidos
 
-  // Funcionalidade de geração automática removida
-
-  // Editor básico inicializado
 
   // =====================================================================
   // FUNÇÃO HELPER PARA INTERSEÇÕES
@@ -1105,138 +1064,8 @@ function initEditor() {
     console.log(`✅ Redimensionamento concluído! Voxels: ${addedVoxels}`);
   }
 
-  // Função handleArrowClick removida - funcionalidade migrada para areaFillSystem
-  function handleArrowClick_DEPRECATED(arrow, isShiftHeld = false) {
-    if (!selectedArea || !arrow.userData.isExpansionArrow) return;
-    
-    const direction = arrow.userData.direction;
-    const operation = isShiftHeld ? 'contrair' : 'expandir';
-    console.log(`🔧 ${operation} na direção: ${arrow.userData.direction}`);
-    
-    let newArea = { ...selectedArea };
-    
-    if (isShiftHeld) {
-      // CONTRAIR (Shift + clique)
-      switch(direction) {
-        case '+X':
-          newArea.maxX -= 1;
-          break;
-        case '-X':
-          newArea.minX += 1;
-          break;
-        case '+Y':
-          newArea.maxY -= 1;
-          break;
-        case '-Y':
-          newArea.minY += 1;
-          break;
-        case '+Z':
-          newArea.maxZ -= 1;
-          break;
-        case '-Z':
-          newArea.minZ += 1;
-          break;
-      }
-    } else {
-      // EXPANDIR (clique normal)
-      switch(direction) {
-        case '+X':
-          newArea.maxX += 1;
-          break;
-        case '-X':
-          newArea.minX -= 1;
-          break;
-        case '+Y':
-          newArea.maxY += 1;
-          break;
-        case '-Y':
-          newArea.minY -= 1;
-          break;
-        case '+Z':
-          newArea.maxZ += 1;
-          break;
-        case '-Z':
-          newArea.minZ -= 1;
-          break;
-      }
-    }
-    
-    // Verificar limites mínimos
-    if (newArea.minX > newArea.maxX || 
-        newArea.minY > newArea.maxY || 
-        newArea.minZ > newArea.maxZ) {
-      console.log(`❌ Não é possível ${operation} mais nesta direção`);
-      return;
-    }
-    
-    // Se contraindo, remover voxels que ficaram fora da nova área
-    if (isShiftHeld) {
-      removeVoxelsOutsideArea(selectedArea, newArea);
-    }
-    
-    // Atualizar área
-    selectedArea = newArea;
-    showAreaSelection(selectedArea);
-    
-    // Preencher novos voxels (apenas se expandindo)
-    let addedVoxels = 0;
-    if (!isShiftHeld) {
-      addedVoxels = fillAreaWithVoxels(selectedArea);
-    }
-    
-    // Recriar handles com novas dimensões
-    createResizeHandles(selectedArea);
-    
-    const directionName = {
-      '+X': 'direita',
-      '-X': 'esquerda',
-      '+Y': 'cima',
-      '-Y': 'baixo',
-      '+Z': 'trás',
-      '-Z': 'frente'
-    }[direction];
-    
-    if (isShiftHeld) {
-      console.log(`� Área contraída para ${directionName}`);
-    } else {
-      console.log(`�📈 Área expandida para ${directionName} (+${addedVoxels} voxels)`);
-    }
-  }
+
   
-  // Função removeVoxelsOutsideArea removida - funcionalidade migrada para areaFillSystem
-  function removeVoxelsOutsideArea_DEPRECATED(oldArea, newArea) {
-    const voxelsToRemove = [];
-    
-    voxels.forEach(voxel => {
-      const x = Math.round(voxel.position.x);
-      const y = Math.round(voxel.position.y);
-      const z = Math.round(voxel.position.z);
-      
-      // Verificar se o voxel estava na área antiga mas não está na nova
-      const wasInOldArea = (x >= oldArea.minX && x <= oldArea.maxX &&
-                           y >= oldArea.minY && y <= oldArea.maxY &&
-                           z >= oldArea.minZ && z <= oldArea.maxZ);
-                           
-   
-      const isInNewArea = (x >= newArea.minX && x <= newArea.maxX &&
-                          y >= newArea.minY && y <= newArea.maxY &&
-                          z >= newArea.minZ && z <= newArea.maxZ);
-      
-      if (wasInOldArea && !isInNewArea) {
-        voxelsToRemove.push(voxel);
-      }
-    });
-    
-    // Remover voxels fora da nova área
-    voxelsToRemove.forEach(voxel => {
-      removeVoxel(voxel, false);
-    });
-    
-    if (voxelsToRemove.length > 0) {
-      saveState();
-      console.log(`🗑️ ${voxelsToRemove.length} voxels removidos na contração`);
-    }
-  }
 
 
   // =====================================================================
@@ -1290,46 +1119,34 @@ function initEditor() {
     }
   }
 
+  // Expor função globalmente para uso em callbacks
+  window.updateFloatingBarVisibility = updateFloatingBarVisibility;
+
   // =====================================================================
-  // LOOP DE RENDERIZAÇÃO
+  // INICIALIZAÇÃO DO SISTEMA DE ATMOSFERA E RENDERIZAÇÃO
   // =====================================================================
 
-  let frameCount = 0;
-  function animate() {
-    requestAnimationFrame(animate);
-    
-    if (particles) {
-      particles.rotation.y += 0.001;
+  // Configurar callbacks para o sistema de renderização
+  atmosphereRenderingSystem.setCallbacks({
+    updateRoomModeSystem: () => {
+      if (roomModeSystem && typeof roomModeSystem.update === 'function') {
+        roomModeSystem.update();
+      }
+    },
+    updateFloatingBarVisibility: updateFloatingBarVisibility,
+    getActiveCamera: () => {
+      // Usar câmera correta baseada no modo ativo
+      if (walkBuildModeSystem && walkBuildModeSystem.isActive) {
+        return walkBuildModeSystem.walkCamera;
+      } else if (roomModeSystem && roomModeSystem.walkBuildModeSystem && roomModeSystem.walkBuildModeSystem.isActive) {
+        return roomModeSystem.walkBuildModeSystem.walkCamera;
+      }
+      return null; // Usar câmera padrão
     }
-    
-    // Log a cada 120 frames (aproximadamente 2 segundos a 60fps)
-    if (frameCount % 120 === 0) {
-      // Frame renderizado
-    }
-    frameCount++;
-    
-    controls.update();
-    
-    // Atualizar sistemas do roomMode
-    if (roomModeSystem && typeof roomModeSystem.update === 'function') {
-      roomModeSystem.update();
-    }
-    
-    // Atualizar visibilidade da barra flutuante baseada no room mode
-    updateFloatingBarVisibility();
-    
-    // Usar câmera correta baseada no modo ativo
-    let activeCamera = camera; // Câmera padrão (OrbitControls)
+  });
 
-    if (walkBuildModeSystem && walkBuildModeSystem.isActive) {
-      activeCamera = walkBuildModeSystem.walkCamera;
-    } else if (roomModeSystem && roomModeSystem.walkBuildModeSystem && roomModeSystem.walkBuildModeSystem.isActive) {
-      activeCamera = roomModeSystem.walkBuildModeSystem.walkCamera;
-    }
-    
-    renderer.render(scene, activeCamera);
-  }
-  animate();
+  // Inicializar sistema de atmosfera e renderização
+  atmosphereRenderingSystem.init(scene, camera, renderer, controls, canvas);
 
   // =====================================================================
   // FUNCIONALIDADE DE EXPORTAÇÃO
@@ -1382,7 +1199,7 @@ function initEditor() {
     }
   }
   
-  // Sistema de handles visuais para redimensionamento de área (legado)
+  // Sistema de handles visuais para redimensionamento de área
   let areaResizeHandles = [];
   let areaDimensionLabels = [];
   
