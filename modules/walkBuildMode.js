@@ -128,6 +128,7 @@ export class WalkBuildModeSystem {
     this.dragStartPosition = new THREE.Vector3();
     this.dragOffset = new THREE.Vector3();
     this.objectOutline = null;
+    this.selectionBox = null;
 
     // Sistema de drag and drop de portas
     this.selectedDoor = null;
@@ -468,6 +469,10 @@ export class WalkBuildModeSystem {
   enterWalkMode() {
     if (this.isActive) return;
 
+    console.log('🚶 Entrando no modo Walk Build');
+    
+    // Nota: Modo artificial de iluminação não é ativado automaticamente
+    // Pode ser controlado manualmente via lampControls.enableArtificialMode()
 
     this.isActive = true;
     this.cursorReleased = false; // Resetar estado do cursor
@@ -566,6 +571,10 @@ export class WalkBuildModeSystem {
   exitWalkMode() {
     if (!this.isActive) return;
 
+    console.log('🏠 Saindo do modo Walk Build');
+    
+    // Nota: Modo artificial de iluminação não é desativado automaticamente
+    // Mantém o estado atual da iluminação
 
     this.isActive = false;
 
@@ -1576,14 +1585,19 @@ export class WalkBuildModeSystem {
     if (this.roomModeSystem && this.roomModeSystem.roomObjects) {
       this.roomModeSystem.roomObjects.forEach(obj => {
         if (obj.meshGroup && obj.meshGroup.visible) {
+          // Adicionar o grupo principal (para seleção direta)
+          objects.push(obj.meshGroup);
+          
+          // Também adicionar meshes individuais (para compatibilidade)
           obj.meshGroup.traverse((child) => {
-            if (child.isMesh) {
+            if (child.isMesh && child !== obj.meshGroup) {
               objects.push(child);
             }
           });
         }
       });
     }
+    
     return objects;
   }
 
@@ -1752,10 +1766,17 @@ export class WalkBuildModeSystem {
       }
     });
 
-    // Event listener para clique de construção
+    // Event listener para clique de construção e seleção
     document.addEventListener('click', (event) => {
-      if (!this.isActive || !this.constructionMode) return;
-      this.handleConstructionClick(event);
+      if (!this.isActive) return;
+      
+      if (this.constructionMode) {
+        // Modo construção ativo
+        this.handleConstructionClick(event);
+      } else {
+        // Modo seleção de objetos
+        this.handleObjectSelection(event);
+      }
     });
 
     // Event listeners para edição de portas no modo walk
@@ -2216,6 +2237,252 @@ export class WalkBuildModeSystem {
     
     // Fallback
     return position;
+  }
+
+  /**
+   * Selecionar objeto da sala clicado
+   */
+  handleObjectSelection(event) {
+    // Usar raycast do centro da tela
+    this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.walkCamera);
+    
+    // Obter objetos da sala
+    const roomObjects = this.getRoomObjects();
+    
+    if (!roomObjects || roomObjects.length === 0) {
+      return;
+    }
+    
+    const intersects = this.raycaster.intersectObjects(roomObjects, true);
+    
+    if (intersects.length > 0) {
+      const intersection = intersects[0];
+      let targetObject = intersection.object;
+      
+      // Verificar se é diretamente um objeto da sala ou percorrer hierarquia
+      let searchDepth = 0;
+      while (targetObject && searchDepth < 10) {
+        if (targetObject.userData.isRoomObject) {
+          this.selectRoomObject(targetObject);
+          console.log('✅ Objeto selecionado:', targetObject.userData.name || 'Sem nome', '- Pressione G para arrastar');
+          return;
+        }
+        
+        targetObject = targetObject.parent;
+        searchDepth++;
+      }
+    } else {
+      console.log('❌ Nenhuma interseção encontrada com o raycast');
+    }
+  }
+  
+  /**
+   * Selecionar objeto da sala
+   */
+  selectRoomObject(object) {
+    // Desselecionar objeto anterior
+    if (this.selectedObject) {
+      this.deselectRoomObject();
+    }
+    
+    this.selectedObject = {
+      meshGroup: object,
+      originalMaterial: null
+    };
+    
+    // Criar contorno verde
+    this.createSelectionOutline(object);
+    
+    // Mensagem já é mostrada no handleObjectSelection
+  }
+  
+  /**
+   * Desselecionar objeto da sala
+   */
+  deselectRoomObject() {
+    if (this.selectedObject) {
+      // Remover contorno
+      this.removeSelectionOutline();
+      
+      // Desativar modo de arrastar se estiver ativo
+      if (this.isDraggingObject) {
+        this.isDraggingObject = false;
+        this.enablePointerControls();
+      }
+      
+      this.selectedObject = null;
+      // Objeto desselecionado silenciosamente
+    }
+  }
+  
+  /**
+   * Criar contorno de seleção verde
+   */
+  createSelectionOutline(object) {
+    // Remover contorno anterior se existir
+    this.removeSelectionOutline();
+    
+    try {
+      // Garantir que o objeto tenha worldMatrix atualizada
+      object.updateMatrixWorld(true);
+      
+      // Criar box helper verde
+      const box = new THREE.BoxHelper(object, 0x00ff00);
+      box.userData.isSelectionBox = true;
+      this.scene.add(box);
+      this.selectionBox = box;
+      
+      console.log('✅ Contorno verde criado com sucesso');
+    } catch (error) {
+      console.warn('⚠️ Erro ao criar BoxHelper, usando método alternativo:', error.message);
+      
+      // Método alternativo: criar contorno manual
+      this.createAlternativeOutline(object);
+    }
+  }
+  
+  /**
+   * Criar contorno alternativo quando BoxHelper falha
+   */
+  createAlternativeOutline(object) {
+    // Calcular bounding box manualmente
+    const box = new THREE.Box3().setFromObject(object);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    
+    // Criar geometria de wireframe
+    const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x00ff00,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.8
+    });
+    
+    const wireframe = new THREE.Mesh(geometry, material);
+    wireframe.position.copy(center);
+    wireframe.userData.isSelectionBox = true;
+    
+    this.scene.add(wireframe);
+    this.selectionBox = wireframe;
+    
+    console.log('✅ Contorno alternativo criado');
+  }
+  
+  /**
+   * Remover contorno de seleção
+   */
+  removeSelectionOutline() {
+    if (this.selectionBox) {
+      this.scene.remove(this.selectionBox);
+      this.selectionBox.dispose();
+      this.selectionBox = null;
+    }
+  }
+  
+  /**
+   * Alternar modo de arrastar objeto
+   */
+  toggleDragMode() {
+    if (!this.selectedObject) {
+      console.warn('⚠️ Nenhum objeto selecionado para arrastar.');
+      return;
+    }
+    
+    this.isDraggingObject = !this.isDraggingObject;
+    
+    if (this.isDraggingObject) {
+      this.startDragging();
+      console.log('👍 Modo de arrastar ATIVADO. Mova o mouse para arrastar o objeto.');
+    } else {
+      this.stopDragging();
+      console.log('👍 Modo de arrastar DESATIVADO. Controles de câmera restaurados.');
+    }
+  }
+  
+  /**
+   * Iniciar arrastamento
+   */
+  startDragging() {
+    if (!this.selectedObject) return;
+    
+    // Armazenar posição inicial do objeto
+    this.dragStartObjectPos.copy(this.selectedObject.meshGroup.position);
+    
+    // Criar plano de arrasto baseado na direção da câmera
+    const cameraDirection = new THREE.Vector3();
+    this.walkCamera.getWorldDirection(cameraDirection);
+    
+    // Plano horizontal para arrastar
+    this.dragPlane.setFromNormalAndCoplanarPoint(
+      new THREE.Vector3(0, 1, 0), // Normal para cima (plano horizontal)
+      this.selectedObject.meshGroup.position
+    );
+    
+    // Desabilitar controles da câmera durante o arrasto
+    this.disablePointerControls();
+  }
+  
+  /**
+   * Parar arrastamento
+   */
+  stopDragging() {
+    // Reabilitar controles da câmera
+    this.enablePointerControls();
+  }
+  
+  /**
+   * Manipular arrastamento do objeto
+   */
+  handleObjectDrag(event) {
+    if (!this.selectedObject || !this.isDraggingObject) return;
+    
+    // Converter movimento do mouse em movimento 3D
+    const movementX = event.movementX || 0;
+    const movementY = event.movementY || 0;
+    
+    // Obter direções da câmera
+    const cameraDirection = new THREE.Vector3();
+    this.walkCamera.getWorldDirection(cameraDirection);
+    
+    const right = new THREE.Vector3();
+    right.crossVectors(cameraDirection, this.walkCamera.up).normalize();
+    
+    const forward = new THREE.Vector3();
+    forward.copy(cameraDirection);
+    forward.y = 0; // Manter no plano horizontal
+    forward.normalize();
+    
+    // Calcular movimento baseado no mouse
+    const moveVector = new THREE.Vector3();
+    
+    // Movimento horizontal do mouse = movimento lateral
+    moveVector.add(right.clone().multiplyScalar(movementX * this.dragSensitivity));
+    
+    // Movimento vertical do mouse = movimento para frente/trás
+    moveVector.add(forward.clone().multiplyScalar(-movementY * this.dragSensitivity));
+    
+    // Aplicar movimento ao objeto
+    this.selectedObject.meshGroup.position.add(moveVector);
+    
+    // Atualizar contorno de seleção
+    if (this.selectionBox) {
+      this.selectionBox.setFromObject(this.selectedObject.meshGroup);
+    }
+  }
+  
+  /**
+   * Desabilitar controles do ponteiro (para arrastar)
+   */
+  disablePointerControls() {
+    this.pointerControlsEnabled = false;
+  }
+  
+  /**
+   * Habilitar controles do ponteiro
+   */
+  enablePointerControls() {
+    this.pointerControlsEnabled = true;
   }
 
   /**

@@ -200,7 +200,22 @@ export class RoomModeSystem {
             }
             this.updateWalkModeButtonState();
           } else {
-            // Entrar no walk mode
+            // Simular exatamente o mesmo fluxo da tecla R
+            console.log('👁️ Simulando fluxo da tecla R: entrando no room mode primeiro');
+            
+            // Se não estamos no room mode, entrar primeiro (igual à tecla R)
+            if (!this.isRoomMode) {
+              console.log('👁️ Entrando no room mode primeiro (igual à tecla R)');
+              this.isRoomMode = true;
+              this.enterRoomMode();
+              
+              // Esconder voxels do editor (igual à tecla R)
+              this.hideEditorVoxels();
+              console.log('👁️ Voxels do editor escondidos (igual à tecla R)');
+            }
+            
+            // Agora entrar no walk mode (segunda etapa igual à tecla R)
+            console.log('👁️ Agora entrando no walk mode (segunda etapa da tecla R)');
             this.walkBuildModeSystem.enterWalkMode();
             this.updateWalkModeButtonState();
           }
@@ -420,10 +435,39 @@ export class RoomModeSystem {
       console.log('🧹 Limpando sala personalizada');
       window.roomConfigSystem.clearRoom();
       
-      // Limpar portas e janelas se disponível
+      // Limpar portas e janelas se disponível e se há paredes
       if (window.doorWindowSystem) {
         console.log('🚪 Limpando portas e janelas');
-        window.doorWindowSystem.clear();
+        try {
+          // Verificar se há paredes disponíveis antes de limpar
+          const wallNames = Object.keys(window.doorWindowSystem.walls || {});
+          if (wallNames.length > 0) {
+            window.doorWindowSystem.clear();
+            console.log('✅ Portas e janelas limpas com sucesso');
+          } else {
+            // Limpar apenas as estruturas de dados se não há paredes físicas
+            if (window.doorWindowSystem.doors) {
+              window.doorWindowSystem.doors.clear();
+            }
+            if (window.doorWindowSystem.lightSources) {
+              window.doorWindowSystem.lightSources.clear();
+            }
+            console.log('✅ Dados de portas limpos (sem paredes físicas para limpar)');
+          }
+        } catch (error) {
+          console.warn('⚠️ Erro ao limpar portas e janelas:', error.message);
+          // Limpar silenciosamente as estruturas de dados
+          try {
+            if (window.doorWindowSystem.doors) {
+              window.doorWindowSystem.doors.clear();
+            }
+            if (window.doorWindowSystem.lightSources) {
+              window.doorWindowSystem.lightSources.clear();
+            }
+          } catch (cleanupError) {
+            console.warn('⚠️ Erro na limpeza de dados:', cleanupError.message);
+          }
+        }
       }
     } else {
       console.log('🧹 Removendo geometria padrão da sala');
@@ -763,6 +807,10 @@ export class RoomModeSystem {
 
     // Posicionar acima do chão
     meshGroup.position.y = 0.5;
+    
+    // Marcar como objeto da sala para permitir seleção
+    meshGroup.userData.isRoomObject = true;
+    meshGroup.userData.name = name.split('/').pop().split('\\').pop().replace(/\.(html|json)$/i, '');
 
     this.scene.add(meshGroup);
 

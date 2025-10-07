@@ -31,32 +31,32 @@ export class LightingSystem {
         // Luz Quente LED (2700K-3000K) - Focada com rebatimento
         warm: {
           color: 0xe6cab2,           // Cor bege rosada suave como solicitado
-          intensity: 12.0,           // Intensidade aumentada para melhor iluminação
+          intensity: 18.0,           // Intensidade alta para iluminação forte
           temperature: 2700,         // Kelvin LED
-          distance: 12,              // Alcance focado - panorama menor
-          decay: 2.2,                // Decaimento mais acentuado para foco
+          distance: 14,              // Alcance ligeiramente aumentado
+          decay: 2.0,                // Decaimento um pouco menor para mais alcance
           angle: Math.PI / 2.5,      // Ângulo de 72° para foco
           penumbra: 0.7,             // Penumbra mais suave
           shadowIntensity: 0.6,      // Sombras mais suaves
           atmosphereColor: 0xe6cab2, // Cor atmosfera bege rosada
           emissiveIntensity: 0.8,    // LED brilhante
-          bounceIntensity: 0.4,      // Intensidade do rebatimento aumentada
-          bounceDistance: 8          // Distância do rebatimento
+          bounceIntensity: 0.6,      // Intensidade do rebatimento bem forte
+          bounceDistance: 9          // Distância do rebatimento aumentada
         },
         // Luz Fria LED (5000K-6500K) - Focada com rebatimento
         cool: {
           color: 0xf9f7f4,           // Cor branco creme suave como solicitado
-          intensity: 15.0,           // Intensidade aumentada para melhor iluminação
+          intensity: 22.0,           // Intensidade alta para iluminação forte
           temperature: 6000,         // Kelvin LED frio
-          distance: 15,              // Alcance focado - panorama menor
-          decay: 2.2,                // Decaimento mais acentuado para foco
+          distance: 17,              // Alcance ligeiramente aumentado
+          decay: 2.0,                // Decaimento um pouco menor para mais alcance
           angle: Math.PI / 2.5,      // Ângulo de 72° para foco
           penumbra: 0.6,             // Penumbra mais suave
           shadowIntensity: 0.7,      // Sombras mais suaves
           atmosphereColor: 0xf9f7f4, // Cor atmosfera branco creme
           emissiveIntensity: 1.0,    // LED máximo brilho
-          bounceIntensity: 0.45,     // Intensidade do rebatimento aumentada
-          bounceDistance: 10         // Distância do rebatimento
+          bounceIntensity: 0.7,      // Intensidade do rebatimento bem forte
+          bounceDistance: 12         // Distância do rebatimento aumentada
         },
         // Configurações de sombras suaves e realistas
         shadow: {
@@ -93,8 +93,25 @@ export class LightingSystem {
     this.atmosphereEffects = new Map(); // ID -> atmosphere effects
     this.animations = new Map(); // ID -> animation data
     
-    // Material cache para performance
+    // Cache para performance
     this.materialCache = new Map();
+    this.geometryCache = new Map();
+    this.lightPool = {
+      pointLights: [],
+      spotLights: [],
+      available: { points: 0, spots: 0 }
+    };
+    
+    // Performance settings
+    this.performanceMode = {
+      maxLamps: 20,
+      shadowMapSize: 1024, // Reduzido para performance
+      updateFrequency: 60,  // ms entre atualizações
+      lastUpdate: 0
+    };
+    
+    // Estado do modo artificial
+    this.artificialModeActive = false;
     
     // Expor controles globalmente
     window.lampControls = {
@@ -104,6 +121,21 @@ export class LightingSystem {
       setType: (id, type) => this.setLampType(id, type),
       setIntensity: (id, intensity) => this.setLampIntensity(id, intensity),
       list: () => this.getLamps(),
+      
+      // Controles de performance
+      cleanup: () => this.cleanup(),
+      setMaxLamps: (max) => { this.performanceMode.maxLamps = Math.max(1, max); },
+      setShadowQuality: (size) => { this.performanceMode.shadowMapSize = Math.max(256, size); },
+      getPerformanceInfo: () => ({
+        lampsCount: this.lamps.size,
+        maxLamps: this.performanceMode.maxLamps,
+        shadowMapSize: this.performanceMode.shadowMapSize,
+        poolStats: this.lightPool.available
+      }),
+      
+      // Controles de modo artificial
+      enableArtificialMode: () => this.enableArtificialLightingMode(),
+      disableArtificialMode: () => this.disableArtificialLightingMode(),
       
       // Controles de ambiente
       setGlobalAmbient: (intensity) => this.setGlobalAmbient(intensity),
@@ -142,20 +174,26 @@ export class LightingSystem {
   }
 
   /**
-   * Configurar ambiente para iluminação artificial
+   * Configurar ambiente para iluminação artificial (apenas quando necessário)
    */
   setupArtificialLightingEnvironment() {
-    // Reduzir luz ambiente para destacar luzes artificiais
+    // Armazenar configurações originais para restaurar depois
+    this.originalLighting = {
+      ambientIntensities: [],
+      fog: this.scene.fog
+    };
+    
+    // Armazenar intensidades originais das luzes ambiente
     this.scene.traverse((child) => {
       if (child.isLight && child.type === 'AmbientLight') {
-        child.intensity = Math.min(child.intensity, 0.15); // Muito baixa
+        this.originalLighting.ambientIntensities.push({
+          light: child,
+          intensity: child.intensity
+        });
       }
     });
     
-    // Configurar fog para atmosfera
-    this.scene.fog = new THREE.Fog(0x1a1a2e, 0.1, 20);
-    
-    console.log('🌆 Ambiente configurado para iluminação artificial');
+    console.log('🌆 Sistema de iluminação artificial inicializado (sem modificar ambiente)');
   }
 
   /**
@@ -255,6 +293,92 @@ export class LightingSystem {
   }
 
   /**
+   * Obter luz do pool ou criar nova
+   */
+  getLightFromPool(lightType, config) {
+    const pool = lightType === 'point' ? this.lightPool.pointLights : this.lightPool.spotLights;
+    const available = lightType === 'point' ? this.lightPool.available.points : this.lightPool.available.spots;
+    
+    let light;
+    if (available > 0) {
+      // Reusar luz do pool
+      light = pool.pop();
+      if (lightType === 'point') {
+        this.lightPool.available.points--;
+      } else {
+        this.lightPool.available.spots--;
+      }
+      
+      // Reconfigurar luz
+      light.color.setHex(config.color);
+      light.intensity = config.intensity;
+      light.distance = config.distance;
+      light.decay = config.decay;
+      
+      if (lightType === 'spot') {
+        light.angle = config.angle;
+        light.penumbra = config.penumbra;
+      }
+    } else {
+      // Criar nova luz
+      if (lightType === 'point') {
+        light = new THREE.PointLight(config.color, config.intensity, config.distance, config.decay);
+      } else {
+        light = new THREE.SpotLight(config.color, config.intensity, config.distance, config.angle, config.penumbra, config.decay);
+      }
+    }
+    
+    return light;
+  }
+  
+  /**
+   * Retornar luz para o pool
+   */
+  returnLightToPool(light) {
+    if (!light) return;
+    
+    // Reset light properties
+    light.intensity = 0;
+    light.visible = false;
+    light.castShadow = false;
+    
+    if (light.isPointLight) {
+      this.lightPool.pointLights.push(light);
+      this.lightPool.available.points++;
+    } else if (light.isSpotLight) {
+      this.lightPool.spotLights.push(light);
+      this.lightPool.available.spots++;
+    }
+  }
+  
+  /**
+   * Obter geometria do cache
+   */
+  getCachedGeometry(type, params) {
+    const key = `${type}_${JSON.stringify(params)}`;
+    
+    if (!this.geometryCache.has(key)) {
+      let geometry;
+      switch (type) {
+        case 'cylinder':
+          geometry = new THREE.CylinderGeometry(...params);
+          break;
+        case 'sphere':
+          geometry = new THREE.SphereGeometry(...params);
+          break;
+        case 'box':
+          geometry = new THREE.BoxGeometry(...params);
+          break;
+        default:
+          return null;
+      }
+      this.geometryCache.set(key, geometry);
+    }
+    
+    return this.geometryCache.get(key);
+  }
+
+  /**
    * Criar lâmpada moderna grudada em superfícies (paredes/teto)
    */
   createLamp(id, position, type = 'warm', surface = 'ceiling') {
@@ -272,7 +396,13 @@ export class LightingSystem {
     lampGroup.userData.isLamp = true;
     lampGroup.userData.surface = surface;
     
-    // Criar lâmpada adequada para a superfície
+    // Verificar limite de lâmpadas para performance
+    if (this.lamps.size >= this.performanceMode.maxLamps) {
+      console.warn(`⚠️ Limite de ${this.performanceMode.maxLamps} lâmpadas atingido para melhor performance`);
+      return null;
+    }
+    
+    // Criar lâmpada adequada para a superfície usando cache
     const { ledMesh, lightPosition, lightDirection } = this.createSurfaceSpot(id, type, surface);
     
     // Adicionar componentes ao grupo
@@ -290,15 +420,8 @@ export class LightingSystem {
     // Configuração da luz
     const lightConfig = this.config.lighting[type];
     
-    // Luz principal focada com atenuação por distância
-    const mainLight = new THREE.SpotLight(
-      lightConfig.color,
-      lightConfig.intensity,
-      lightConfig.distance,
-      lightConfig.angle,
-      lightConfig.penumbra,
-      lightConfig.decay
-    );
+    // Luz principal focada usando object pooling
+    const mainLight = this.getLightFromPool('spot', lightConfig);
     
     // Posicionar luz e direcionamento baseado na superfície
     mainLight.position.copy(lightPosition);
@@ -310,16 +433,19 @@ export class LightingSystem {
       
     mainLight.target.position.copy(lightPosition).add(targetDirection.multiplyScalar(3));
     
-    // Configurar sombras suaves
+    // Configurar sombras otimizadas para performance
     mainLight.castShadow = true;
-    mainLight.shadow.mapSize.width = this.config.lighting.shadow.mapSize;
-    mainLight.shadow.mapSize.height = this.config.lighting.shadow.mapSize;
+    mainLight.shadow.mapSize.width = this.performanceMode.shadowMapSize;
+    mainLight.shadow.mapSize.height = this.performanceMode.shadowMapSize;
     mainLight.shadow.camera.near = this.config.lighting.shadow.camera.near;
     mainLight.shadow.camera.far = lightConfig.distance;
     mainLight.shadow.bias = this.config.lighting.shadow.bias;
     
-    // Criar luzes de rebatimento nas paredes
-    const bounceLights = this.createWallBounceLights(lightPosition, lightConfig);
+    // Otimizar shadow camera frustum
+    mainLight.shadow.camera.fov = 45; // Reduzir FOV para melhor performance
+    
+    // Criar luzes de rebatimento otimizadas
+    const bounceLights = this.createOptimizedBounceLights(lightPosition, lightConfig);
     
     // Adicionar todas as luzes ao grupo
     lampGroup.add(mainLight);
@@ -357,29 +483,42 @@ export class LightingSystem {
   }
 
   /**
+   * Criar luzes de rebatimento otimizadas
+   */
+  createOptimizedBounceLights(position, lightConfig) {
+    // Reduzir número de luzes de rebatimento para performance
+    const bounceCount = this.lamps.size < 10 ? 4 : 2; // Menos luzes quando há muitas lâmpadas
+    return this.createWallBounceLights(position, lightConfig, bounceCount);
+  }
+  
+  /**
    * Criar luzes de rebatimento nas paredes para iluminação indireta
    */
-  createWallBounceLights(position, lightConfig) {
+  createWallBounceLights(position, lightConfig, bounceCount = 4) {
     const bounceLights = [];
     
-    // Direções para as 4 paredes principais
-    const bounceDirections = [
+    // Direções dinâmicas baseadas na performance
+    const allDirections = [
       { x: 1, y: 0, z: 0, name: 'direita' },   // Parede direita
       { x: -1, y: 0, z: 0, name: 'esquerda' }, // Parede esquerda
       { x: 0, y: 0, z: 1, name: 'frente' },    // Parede frontal
       { x: 0, y: 0, z: -1, name: 'tras' }      // Parede traseira
     ];
     
+    const bounceDirections = allDirections.slice(0, bounceCount);
+    
     bounceDirections.forEach((dir, index) => {
-      // Luz de rebatimento mais sutil
-      const bounceLight = new THREE.SpotLight(
-        lightConfig.color,
-        lightConfig.bounceIntensity || 0.3, // Intensidade do rebatimento
-        lightConfig.bounceDistance || 8,     // Distância menor para rebatimento
-        Math.PI / 4,                         // Ângulo de 45°
-        0.8,                                 // Penumbra bem suave
-        2.5                                  // Decay maior para efeito sutil
-      );
+      // Luz de rebatimento usando object pooling
+      const bounceConfig = {
+        color: lightConfig.color,
+        intensity: lightConfig.bounceIntensity || 0.3,
+        distance: lightConfig.bounceDistance || 8,
+        angle: Math.PI / 4,
+        penumbra: 0.8,
+        decay: 2.5
+      };
+      
+      const bounceLight = this.getLightFromPool('spot', bounceConfig);
       
       // Posicionar luz de rebatimento
       bounceLight.position.copy(position);
@@ -450,6 +589,50 @@ export class LightingSystem {
     });
     
     return indirectLights;
+  }
+
+  /**
+   * Ativar modo de iluminação artificial (reduz luz ambiente)
+   */
+  enableArtificialLightingMode() {
+    if (this.artificialModeActive) return;
+    
+    console.log('🌆 Ativando modo de iluminação artificial');
+    
+    // Reduzir luz ambiente para destacar luzes artificiais
+    this.scene.traverse((child) => {
+      if (child.isLight && child.type === 'AmbientLight') {
+        child.intensity = Math.min(child.intensity, 0.15);
+      }
+    });
+    
+    // Configurar fog para atmosfera
+    this.scene.fog = new THREE.Fog(0x1a1a2e, 0.1, 20);
+    
+    this.artificialModeActive = true;
+  }
+
+  /**
+   * Desativar modo de iluminação artificial (restaura iluminação normal)
+   */
+  disableArtificialLightingMode() {
+    if (!this.artificialModeActive) return;
+    
+    console.log('🌅 Restaurando iluminação normal');
+    
+    // Restaurar intensidades originais das luzes ambiente
+    if (this.originalLighting && this.originalLighting.ambientIntensities) {
+      this.originalLighting.ambientIntensities.forEach(({ light, intensity }) => {
+        if (light && light.parent) {
+          light.intensity = intensity;
+        }
+      });
+    }
+    
+    // Restaurar fog original
+    this.scene.fog = this.originalLighting ? this.originalLighting.fog : null;
+    
+    this.artificialModeActive = false;
   }
 
   /**
@@ -536,12 +719,111 @@ export class LightingSystem {
     const spotConfig = this.config.lamp.spot;
     
     if (surface === 'wall') {
-      // Usar track light para paredes
-      return this.createWallTrack(id, type);
+      // Usar track light otimizado para paredes
+      return this.createOptimizedWallTrack(id, type);
     } else {
-      // Usar spot para teto (padrão)
-      return this.createCeilingSpot(id, type);
+      // Usar spot otimizado para teto (padrão)
+      return this.createOptimizedCeilingSpot(id, type);
     }
+  }
+  
+  /**
+   * Criar spot LED otimizado para teto usando cache
+   */
+  createOptimizedCeilingSpot(id, type) {
+    const spotConfig = this.config.lamp.spot;
+    
+    // Usar geometrias do cache
+    const housingGeometry = this.getCachedGeometry('cylinder', [
+      spotConfig.housingRadius,
+      spotConfig.housingRadius,
+      spotConfig.housingDepth,
+      16
+    ]);
+    
+    const innerGeometry = this.getCachedGeometry('cylinder', [
+      spotConfig.housingRadius * 0.8,
+      spotConfig.housingRadius * 0.8,
+      spotConfig.housingDepth * 0.9,
+      16
+    ]);
+    
+    const ledGeometry = this.getCachedGeometry('cylinder', [
+      spotConfig.lensRadius,
+      spotConfig.lensRadius,
+      spotConfig.lensDepth,
+      12
+    ]);
+    
+    // Criar meshes com geometrias reutilizadas
+    const housingMesh = new THREE.Mesh(housingGeometry, this.materialCache.get('housing'));
+    housingMesh.position.y = -spotConfig.housingDepth / 2;
+    housingMesh.castShadow = true;
+    housingMesh.userData.lampId = id;
+    
+    const innerMesh = new THREE.Mesh(innerGeometry, this.materialCache.get('inner'));
+    innerMesh.position.y = -spotConfig.housingDepth / 2;
+    
+    const ledMesh = new THREE.Mesh(ledGeometry, this.materialCache.get(`led_${type}`));
+    ledMesh.position.y = -spotConfig.housingDepth + spotConfig.lensDepth / 2;
+    
+    // Grupo do spot
+    const spotGroup = new THREE.Group();
+    spotGroup.add(housingMesh);
+    spotGroup.add(innerMesh);
+    spotGroup.add(ledMesh);
+    
+    // Posição e direção da luz
+    const lightPosition = new THREE.Vector3(0, -spotConfig.housingDepth / 2, 0);
+    const lightDirection = new THREE.Vector3(0, -1, 0); // Para baixo
+    
+    return { ledMesh: spotGroup, lightPosition, lightDirection };
+  }
+  
+  /**
+   * Criar track light otimizado para parede usando cache
+   */
+  createOptimizedWallTrack(id, type) {
+    const trackConfig = this.config.lamp.track;
+    
+    // Usar geometrias do cache
+    const trackGeometry = this.getCachedGeometry('box', [
+      trackConfig.width,
+      trackConfig.height,
+      trackConfig.depth
+    ]);
+    
+    const spotGeometry = this.getCachedGeometry('cylinder', [
+      trackConfig.spotRadius,
+      trackConfig.spotRadius,
+      trackConfig.spotLength,
+      12
+    ]);
+    
+    // Criar meshes
+    const trackMesh = new THREE.Mesh(trackGeometry, this.materialCache.get('housing'));
+    trackMesh.castShadow = true;
+    trackMesh.userData.lampId = id;
+    
+    const spotMesh = new THREE.Mesh(spotGeometry, this.materialCache.get('housing'));
+    spotMesh.position.set(0, 0, trackConfig.depth / 2 + trackConfig.spotLength / 2);
+    spotMesh.rotation.x = -Math.PI / 6;
+    
+    // LED do spot usando geometria do cache
+    const ledGeometry = this.getCachedGeometry('circle', [trackConfig.spotRadius * 0.7, 12]);
+    const ledMesh = new THREE.Mesh(ledGeometry, this.materialCache.get(`led_${type}`));
+    ledMesh.position.z = trackConfig.spotLength / 2 - 0.005;
+    
+    spotMesh.add(ledMesh);
+    
+    const trackGroup = new THREE.Group();
+    trackGroup.add(trackMesh);
+    trackGroup.add(spotMesh);
+    
+    const lightPosition = new THREE.Vector3(0, 0, trackConfig.depth / 2 + trackConfig.spotLength / 2);
+    const lightDirection = new THREE.Vector3(0, -0.8, -0.6).normalize();
+    
+    return { ledMesh: trackGroup, lightPosition, lightDirection };
   }
 
   /**
@@ -900,7 +1182,19 @@ export class LightingSystem {
   }
 
   /**
-   * Animar ligação da lâmpada
+   * Throttle para animações (evita sobrecarga)
+   */
+  shouldUpdateAnimation() {
+    const now = Date.now();
+    if (now - this.performanceMode.lastUpdate < this.performanceMode.updateFrequency) {
+      return false;
+    }
+    this.performanceMode.lastUpdate = now;
+    return true;
+  }
+
+  /**
+   * Animar ligação da lâmpada com throttling
    */
   animateLampTurnOn(lampId) {
     const lampData = this.lamps.get(lampId);
@@ -1222,7 +1516,20 @@ export class LightingSystem {
       return false;
     }
     
-    console.log(`💡🗑️ Removendo lâmpada '${lampId}'`);
+    console.log(`💡🗑️ Removendo lâmpada '${lampId}' e retornando recursos ao pool`);
+    
+    // Retornar luzes para o pool
+    if (lampData.mainLight) {
+      this.returnLightToPool(lampData.mainLight);
+    }
+    
+    if (lampData.bounceLights) {
+      lampData.bounceLights.forEach(bounceLight => {
+        if (bounceLight.light) {
+          this.returnLightToPool(bounceLight.light);
+        }
+      });
+    }
     
     // Remover da cena
     this.scene.remove(lampData.group);
@@ -1344,7 +1651,40 @@ export class LightingSystem {
   }
 
   /**
-   * Debug do sistema de iluminação
+   * Limpar recursos e cache para liberar memória
+   */
+  cleanup() {
+    console.log('🧹 Limpando sistema de iluminação...');
+    
+    // Limpar todas as lâmpadas
+    const lampIds = Array.from(this.lamps.keys());
+    lampIds.forEach(id => this.removeLamp(id));
+    
+    // Limpar caches
+    this.materialCache.clear();
+    
+    // Limpar geometrias do cache
+    this.geometryCache.forEach(geometry => {
+      if (geometry.dispose) geometry.dispose();
+    });
+    this.geometryCache.clear();
+    
+    // Limpar pool de luzes
+    [...this.lightPool.pointLights, ...this.lightPool.spotLights].forEach(light => {
+      if (light.dispose) light.dispose();
+    });
+    
+    this.lightPool = {
+      pointLights: [],
+      spotLights: [],
+      available: { points: 0, spots: 0 }
+    };
+    
+    console.log('✅ Sistema de iluminação limpo');
+  }
+
+  /**
+   * Debug do sistema de iluminação com informações de performance
    */
   debugLightingSystem() {
     console.log('💡🔍 === DEBUG SISTEMA DE ILUMINAÇÃO ===');
@@ -1352,6 +1692,11 @@ export class LightingSystem {
     console.log('Fontes de luz:', this.lightSources.size);
     console.log('Efeitos atmosféricos:', this.atmosphereEffects.size);
     console.log('Cache de materiais:', this.materialCache.size);
+    console.log('Cache de geometrias:', this.geometryCache.size);
+    console.log('Pool de luzes - Pontos disponíveis:', this.lightPool.available.points);
+    console.log('Pool de luzes - Spots disponíveis:', this.lightPool.available.spots);
+    console.log('Limite de lâmpadas:', this.performanceMode.maxLamps);
+    console.log('Tamanho do shadow map:', this.performanceMode.shadowMapSize);
     
     // Stats de performance
     let totalLights = 0;
