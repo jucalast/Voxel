@@ -19,7 +19,7 @@ class AtmosphereRenderingSystem {
     
     // Configurações do sistema
     this.config = {
-      particleCount: 100,
+      particleCount: 0, // Desativado: era 100
       particleSize: 0.5,
       particleOpacity: 0.1,
       particleColor: 0x666699,

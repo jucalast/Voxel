@@ -80,8 +80,11 @@ export class LightingSystem {
         // Efeitos atmosféricos
         atmosphere: {
           volumetricEnabled: true,
-          dustParticles: true,
+          dustParticles: false, // Desativado: era true
+          localizedDust: true, // Partículas localizadas apenas onde a luz incide
           lightCones: true,
+          // Toggle específico para cones visuais nas lâmpadas (desative para remover cone das lâmpadas)
+          lightConesForLamps: false,
           dynamicShadows: true
         }
       }
@@ -92,6 +95,8 @@ export class LightingSystem {
     this.lightSources = new Map(); // ID -> light objects
     this.atmosphereEffects = new Map(); // ID -> atmosphere effects
     this.animations = new Map(); // ID -> animation data
+  // Internal flag to avoid starting multiple dust animation loops
+  this._dustAnimationStarted = false;
     
     // Cache para performance
     this.materialCache = new Map();
@@ -154,6 +159,8 @@ export class LightingSystem {
     this.init();
     
     console.log('💡✨ Sistema de Iluminação Artificial inicializado');
+    // Expor instância globalmente para outros sistemas solicitarem partículas localizadas
+    if (typeof window !== 'undefined') window.lightingSystem = this;
   }
 
   init() {
@@ -165,10 +172,24 @@ export class LightingSystem {
     
     // Configurar sistema de partículas atmosféricas
     this.setupAtmosphereParticles();
+
+    // Remover cones visuais existentes se a opção estiver desabilitada
+    if (this.config && this.config.lighting && this.config.lighting.atmosphere && !this.config.lighting.atmosphere.lightConesForLamps) {
+      this.scene.traverse(o => {
+        if (o.userData && o.userData.isLightCone) {
+          if (o.parent) o.parent.remove(o); else this.scene.remove(o);
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) o.material.dispose();
+        }
+      });
+    }
     
     // Melhorar materiais realistas após configuração base
     this.enhanceMaterialRealism();
     
+    // Iniciar animação global de partículas de poeira (mesmo que não existam inicialmente)
+    this.animateDustParticles();
+
     // Sistema inicializado
     console.log('💡 Sistema de lâmpadas pronto para uso');
   }
@@ -253,8 +274,26 @@ export class LightingSystem {
    * Criar sistema de partículas atmosféricas
    */
   setupAtmosphereParticles() {
+    // Verificar se partículas de poeira estão habilitadas na configuração
+    if (!this.config || !this.config.lighting || !this.config.lighting.atmosphere || !this.config.lighting.atmosphere.dustParticles) {
+      // Remover quaisquer partículas existentes para evitar resíduos visuais
+      if (this.dustParticles) {
+        if (this.dustParticles.parent) {
+          this.dustParticles.parent.remove(this.dustParticles);
+        } else {
+          this.scene.remove(this.dustParticles);
+        }
+        if (this.dustParticles.geometry) this.dustParticles.geometry.dispose();
+        if (this.dustParticles.material) this.dustParticles.material.dispose();
+        this.dustParticles = null;
+        console.log('🧹 Partículas de poeira não criadas (configuração desativada) — resíduos removidos');
+      }
+      return;
+    }
+
     // Partículas de poeira para efeito volumétrico
-    const particleCount = 200;
+    const particleCount = Math.max(0, (this.config.lighting.atmosphere.particleCount || 200));
+    if (particleCount === 0) return;
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
     
@@ -283,11 +322,14 @@ export class LightingSystem {
       blending: THREE.AdditiveBlending
     });
     
-    this.dustParticles = new THREE.Points(particleGeometry, particleMaterial);
-    this.scene.add(this.dustParticles);
-    
-    // Animação das partículas
-    this.animateDustParticles();
+  this.dustParticles = new THREE.Points(particleGeometry, particleMaterial);
+  // Marcar para facilitar remoção por outros sistemas
+  this.dustParticles.userData = this.dustParticles.userData || {};
+  this.dustParticles.userData.isDustParticles = true;
+  this.scene.add(this.dustParticles);
+
+  // Iniciar animação das partículas (somente uma vez)
+  this.animateDustParticles();
     
     console.log('✨ Sistema de partículas atmosféricas criado');
   }
@@ -474,7 +516,17 @@ export class LightingSystem {
     
     this.lamps.set(id, lampData);
     this.lightSources.set(id, mainLight);
-    
+
+    // Criar efeitos atmosféricos (cone, halo e partículas localizadas) se habilitados
+    try {
+      if (this.config && this.config.lighting && this.config.lighting.atmosphere && this.config.lighting.atmosphere.lightCones) {
+        const effects = this.createModernAtmosphereEffects(id, lampGroup, type, surface);
+        if (effects) this.atmosphereEffects.set(id, effects);
+      }
+    } catch (e) {
+      console.warn('⚠️ Erro ao criar efeitos atmosféricos da lâmpada:', e);
+    }
+
     // Animar ligação da lâmpada
     this.animateLampTurnOn(id);
     
@@ -976,17 +1028,21 @@ export class LightingSystem {
     const lightConfig = this.config.lighting[type];
     const effects = {};
     
-    // Cone de luz mais focado e moderno
-    const coneGeometry = new THREE.ConeGeometry(1.5, 3, 8, 1, true);
-    const coneMaterial = new THREE.MeshBasicMaterial({
-      color: lightConfig.atmosphereColor,
-      transparent: true,
-      opacity: 0.08,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending
-    });
-    
-    effects.lightCone = new THREE.Mesh(coneGeometry, coneMaterial);
+    // Cone de luz mais focado e moderno (opcional por configuração)
+    if (this.config && this.config.lighting && this.config.lighting.atmosphere && this.config.lighting.atmosphere.lightConesForLamps) {
+      const coneGeometry = new THREE.ConeGeometry(1.5, 3, 8, 1, true);
+      const coneMaterial = new THREE.MeshBasicMaterial({
+        color: lightConfig.atmosphereColor,
+        transparent: true,
+        opacity: 0.08,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending
+      });
+      
+      effects.lightCone = new THREE.Mesh(coneGeometry, coneMaterial);
+      effects.lightCone.userData = effects.lightCone.userData || {};
+      effects.lightCone.userData.isLightCone = true; // marcar para remoção/controle
+    }
     
     // Halo menor e mais sutil
     const haloGeometry = new THREE.RingGeometry(0.3, 1.5, 16);
@@ -1094,6 +1150,8 @@ export class LightingSystem {
     
     animate();
   }
+
+  // ...existing code...
 
   /**
    * Detectar superfície para instalação da lâmpada (teto ou parede)
@@ -1534,11 +1592,18 @@ export class LightingSystem {
     // Remover da cena
     this.scene.remove(lampData.group);
     
-    // Remover efeitos atmosféricos
+    // Remover efeitos atmosféricos (cone, halo, partículas)
     const effects = this.atmosphereEffects.get(lampId);
     if (effects) {
       if (effects.lightCone) this.scene.remove(effects.lightCone);
       if (effects.halo) this.scene.remove(effects.halo);
+      if (effects.dustParticles) {
+        if (effects.dustParticles.parent) effects.dustParticles.parent.remove(effects.dustParticles);
+        else this.scene.remove(effects.dustParticles);
+        if (effects.dustParticles.geometry) effects.dustParticles.geometry.dispose();
+        if (effects.dustParticles.material) effects.dustParticles.material.dispose();
+      }
+      this.atmosphereEffects.delete(lampId);
     }
     
     // Limpar registros
@@ -1571,32 +1636,89 @@ export class LightingSystem {
    * Animar partículas de poeira
    */
   animateDustParticles() {
-    if (!this.dustParticles) return;
-    
+    if (this._dustAnimationStarted) return; // evitar múltiplos loops
+    this._dustAnimationStarted = true;
+
+    const tmpAxis = new THREE.Vector3();
+    const tmpU = new THREE.Vector3();
+    const tmpV = new THREE.Vector3();
+    const tmpPos = new THREE.Vector3();
+
     const animate = () => {
-      const time = Date.now() * 0.0005;
-      const positions = this.dustParticles.geometry.attributes.position;
-      
-      for (let i = 0; i < positions.count; i++) {
-        const i3 = i * 3;
-        
-        // Movimento sutil das partículas
-        positions.array[i3 + 1] += 0.01; // Movimento ascendente
-        
-        // Reset quando muito alto
-        if (positions.array[i3 + 1] > 5) {
-          positions.array[i3 + 1] = 0;
+      // Coletar todos os Points marcados como partículas de poeira
+      const dustSets = [];
+      this.scene.traverse(o => {
+        if (o.userData && o.userData.isDustParticles && o.geometry && o.geometry.attributes && o.geometry.attributes.position) {
+          dustSets.push(o);
         }
-        
-        // Movimento lateral sutil
-        positions.array[i3] += Math.sin(time + i) * 0.002;
-        positions.array[i3 + 2] += Math.cos(time + i) * 0.002;
-      }
-      
-      positions.needsUpdate = true;
+      });
+
+      const now = Date.now();
+
+      dustSets.forEach(points => {
+        const geom = points.geometry;
+        const posAttr = geom.getAttribute('position');
+        const tAttr = geom.getAttribute('t');
+        const angleAttr = geom.getAttribute('angle');
+        const radialAttr = geom.getAttribute('radialFactor');
+
+        // Recuperar parâmetros do userData (origin, axis, u, v, length, baseRadius, speed)
+        const ud = points.userData || {};
+        const originArr = ud.origin || [points.position.x, points.position.y, points.position.z];
+        const axisArr = ud.axis || (ud.lightDirection ? [ud.lightDirection.x, ud.lightDirection.y, ud.lightDirection.z] : [0, -1, 0]);
+        const length = ud.length || (ud.maxDistance || 8);
+        const baseRadius = ud.baseRadius || (ud.spread || 1.5);
+        const speed = ud.speed || 0.01;
+
+        tmpAxis.set(axisArr[0], axisArr[1], axisArr[2]).normalize();
+
+        // Reconstruir basis ortonormal (u, v)
+        if (ud.u && ud.v) {
+          tmpU.set(ud.u[0], ud.u[1], ud.u[2]);
+          tmpV.set(ud.v[0], ud.v[1], ud.v[2]);
+        } else {
+          const up = Math.abs(tmpAxis.y) < 0.999 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+          tmpU.copy(tmpAxis).cross(up).normalize();
+          tmpV.copy(tmpAxis).cross(tmpU).normalize();
+          points.userData.u = [tmpU.x, tmpU.y, tmpU.z];
+          points.userData.v = [tmpV.x, tmpV.y, tmpV.z];
+        }
+
+        const origin = new THREE.Vector3(originArr[0], originArr[1], originArr[2]);
+
+        // Atualizar cada partícula usando atributos t/angle/radialFactor
+        for (let i = 0; i < posAttr.count; i++) {
+          const i3 = i * 3;
+
+          // Avançar ao longo do eixo
+          const prevT = tAttr ? tAttr.array[i] : 0;
+          const rndFactor = radialAttr ? radialAttr.array[i] : Math.random();
+          let t = prevT + speed * (1 + rndFactor * 0.5);
+          if (t > length) t = Math.random() * 0.05; // reset discreto
+          if (tAttr) tAttr.array[i] = t;
+
+          const angle = angleAttr ? angleAttr.array[i] : Math.random() * Math.PI * 2;
+          const radial = rndFactor;
+
+          const radiusAtT = (t / length) * baseRadius * radial;
+
+          // pos = origin + axis * t + u * cos(angle) * radius + v * sin(angle) * radius
+          tmpPos.copy(origin).add(tmpAxis.clone().multiplyScalar(t));
+          tmpPos.add(tmpU.clone().multiplyScalar(Math.cos(angle) * radiusAtT));
+          tmpPos.add(tmpV.clone().multiplyScalar(Math.sin(angle) * radiusAtT));
+
+          posAttr.array[i3] = tmpPos.x;
+          posAttr.array[i3 + 1] = tmpPos.y;
+          posAttr.array[i3 + 2] = tmpPos.z;
+        }
+
+        posAttr.needsUpdate = true;
+        if (tAttr) tAttr.needsUpdate = true;
+      });
+
       requestAnimationFrame(animate);
     };
-    
+
     animate();
   }
 

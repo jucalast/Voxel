@@ -42,7 +42,7 @@ export class DoorWindowSystem {
     this.isDarkEnvironmentActive = false;
     
     // NÃO configurar ambiente escuro no construtor - apenas quando necessário
-    // this.setupDarkEnvironment(); // Removido - será chamado apenas no walk mode
+    // this.. .setupDarkEnvironment(); // Removido - será chamado apenas no walk mode
     
     // Integrar com sistema floating-bar para controle de luz
     this.integrateWithFloatingBar();

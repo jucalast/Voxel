@@ -466,6 +466,7 @@ export class AtmosphereSystem {
       originalUpdateDoorLighting(doorId, isOpen);
       
       if (isOpen) {
+        console.log(`🚪 Porta ${doorId} aberta — solicitando criação automática de partículas localizadas`);
         this.collectLightSources(); // Re-coletar fontes de luz
         this.enhanceLightSource(doorId, 'door');
         
@@ -473,8 +474,101 @@ export class AtmosphereSystem {
         if (this.dynamicLightingSystem) {
           this.dynamicLightingSystem.refreshLightSources();
         }
+      } else {
+        // Porta fechada: remover partículas locais relacionadas a esta porta
+        const key = `doorDust:${doorId}`;
+        const existing = this.atmosphericEffects.get(key);
+        if (existing) {
+          if (existing.parent) existing.parent.remove(existing);
+          else this.scene.remove(existing);
+
+          // Dispose any child geometries/materials if this is a Group
+          if (existing && typeof existing.traverse === 'function') {
+            existing.traverse((child) => {
+              try {
+                if (child.geometry && typeof child.geometry.dispose === 'function') child.geometry.dispose();
+                if (child.material) {
+                  if (Array.isArray(child.material)) {
+                    child.material.forEach(m => { if (m && typeof m.dispose === 'function') m.dispose(); });
+                  } else if (child.material && typeof child.material.dispose === 'function') {
+                    child.material.dispose();
+                  }
+                }
+              } catch (e) {
+                // ignore disposal errors but log occasionally
+                if (Math.random() < 0.01) console.warn('⚠️ Erro ao tentar disposar child:', e);
+              }
+            });
+          } else {
+            if (existing.geometry && typeof existing.geometry.dispose === 'function') existing.geometry.dispose();
+            if (existing.material && typeof existing.material.dispose === 'function') existing.material.dispose();
+          }
+
+          this.atmosphericEffects.delete(key);
+          console.log(`🧹 Partículas locais removidas para porta ${doorId}`);
+        }
       }
     };
+
+    // MONKEYPATCH toggleDoor to ensure dust creation occurs reliably when doors open
+    try {
+      const originalToggleDoor = this.doorWindowSystem.toggleDoor.bind(this.doorWindowSystem);
+      this.doorWindowSystem.toggleDoor = (doorId) => {
+        const result = originalToggleDoor(doorId);
+        try {
+          // If door is now open, try to create dust shortly after (allow light updates to settle)
+          const doorEntry = this.doorWindowSystem.doors && this.doorWindowSystem.doors.get(doorId);
+          const isOpen = doorEntry ? !!doorEntry.isOpen : false;
+          if (isOpen) {
+            console.log(`🔁 toggleDoor wrapper: detected open for ${doorId}, scheduling dust creation`);
+
+            // Remove any existing dust for this door first
+            const key = `doorDust:${doorId}`;
+            const existing = this.atmosphericEffects.get(key);
+            if (existing) {
+              if (existing.parent) existing.parent.remove(existing); else this.scene.remove(existing);
+              // Dispose children
+              if (existing && typeof existing.traverse === 'function') {
+                existing.traverse((child) => {
+                  if (child.geometry && typeof child.geometry.dispose === 'function') child.geometry.dispose();
+                  if (child.material) {
+                    if (Array.isArray(child.material)) child.material.forEach(m=>m.dispose && m.dispose());
+                    else if (child.material.dispose) child.material.dispose();
+                  }
+                });
+              }
+              this.atmosphericEffects.delete(key);
+            }
+
+            setTimeout(() => {
+              try {
+                if (window.particleDebugger && typeof window.particleDebugger.forceCreateDoorDust === 'function') {
+                  window.particleDebugger.forceCreateDoorDust(doorId, { forceDebugVisual: true, debugCount: 10, debugSphereSize: 0.14 });
+                } else if (window.lightDispersionSystem && typeof window.lightDispersionSystem.createDustParticles === 'function') {
+                  const doorPos = doorEntry && doorEntry.group ? doorEntry.group.getWorldPosition(new THREE.Vector3()) : (doorEntry && doorEntry.position ? new THREE.Vector3(doorEntry.position.x, doorEntry.position.y, doorEntry.position.z) : null);
+                  if (doorPos) {
+                    const created = window.lightDispersionSystem.createDustParticles(doorPos, new THREE.Vector3(0, -0.1, 1).normalize(), { force: true, particleCount: 420, size: 0.08, opacity: 0.95 });
+                    if (created) {
+                      const group = new THREE.Group();
+                      group.add(created);
+                      this.scene.add(group);
+                      this.atmosphericEffects.set(key, group);
+                    }
+                  }
+                }
+              } catch (e) {
+                console.warn('⚠️ Erro no wrapper de toggleDoor ao criar poeira:', e);
+              }
+            }, 60);
+          }
+        } catch (e) {
+          console.warn('⚠️ Erro no wrapper de toggleDoor:', e);
+        }
+        return result;
+      };
+    } catch (e) {
+      console.warn('⚠️ Não foi possível monkeypatch toggleDoor:', e);
+    }
 
     // Sobrescrever atualização de iluminação das janelas
     const originalUpdateWindowLighting = this.doorWindowSystem.updateWindowLighting.bind(this.doorWindowSystem);
@@ -501,6 +595,83 @@ export class AtmosphereSystem {
     // Criar efeitos atmosféricos para a fonte de luz
     this.createLightShafts(id, type);
     this.createVolumetricLighting(id, type);
+    
+    // Criar partículas localizadas se for porta e se o sistema de dispersão estiver disponível
+    if (type === 'door' && this.doorWindowSystem && typeof window !== 'undefined') {
+      try {
+        const doors = this.doorWindowSystem.getDoors ? this.doorWindowSystem.getDoors() : [];
+        const doorObj = doors.find(d => d.id === id) || this.doorWindowSystem.doors.get(id);
+        if (doorObj) {
+          let doorPos = null;
+
+          // Preferir obter posição real via group (contém world transform)
+          if (doorObj.group && typeof doorObj.group.getWorldPosition === 'function') {
+            doorPos = doorObj.group.getWorldPosition(new THREE.Vector3());
+          } else if (doorObj.position && typeof doorObj.position.x === 'number' && typeof doorObj.position.y === 'number') {
+            // If a z coordinate is present, use it; otherwise try to resolve via doorWindowSystem helper
+            if (typeof doorObj.position.z === 'number') {
+              doorPos = new THREE.Vector3(doorObj.position.x, doorObj.position.y, doorObj.position.z);
+            } else if (this.doorWindowSystem && typeof this.doorWindowSystem.getWallPosition === 'function' && doorObj.wallName) {
+              // Compute world position from wallName + relative position
+              doorPos = this.doorWindowSystem.getWallPosition(doorObj.wallName, doorObj.position);
+            } else {
+              // Fallback: if the stored Map has a richer object, use it
+              const stored = this.doorWindowSystem && this.doorWindowSystem.doors ? this.doorWindowSystem.doors.get(id) : null;
+              if (stored && stored.group && typeof stored.group.getWorldPosition === 'function') {
+                doorPos = stored.group.getWorldPosition(new THREE.Vector3());
+              }
+            }
+          }
+
+          // Final fallback: try to compute from stored door entry
+          if (!doorPos && this.doorWindowSystem && this.doorWindowSystem.doors) {
+            const stored = this.doorWindowSystem.doors.get(id);
+            if (stored && stored.group && typeof stored.group.getWorldPosition === 'function') {
+              doorPos = stored.group.getWorldPosition(new THREE.Vector3());
+            }
+          }
+
+          const lightDir = new THREE.Vector3(0, -0.1, 1).normalize();
+
+          if (!doorPos) {
+            console.warn(`⚠️ Não foi possível calcular posição da porta ${id} para criar partículas de poeira`);
+          } else {
+            // Verificar configuração global/local antes de tentar criar partículas
+            const lightingCfg = window.lightingSystem && window.lightingSystem.config && window.lightingSystem.config.lighting && window.lightingSystem.config.lighting.atmosphere;
+            if (!lightingCfg || !lightingCfg.localizedDust) {
+              console.log(`⚪ Não serão criadas partículas localizadas para porta ${id} — desativadas pela configuração (localizedDust=false)`);
+            } else if (window.lightDispersionSystem && typeof window.lightDispersionSystem.createDustParticles === 'function') {
+              try {
+                console.log(`🧭 Solicitando criação de partículas locais (forçado) para porta ${id} em`, doorPos);
+                // Prefer using particleDebugger.forceCreateDoorDust if available so we always get a container
+                let container = null;
+                if (window.particleDebugger && typeof window.particleDebugger.forceCreateDoorDust === 'function') {
+                  container = window.particleDebugger.forceCreateDoorDust(id, { particleCount: 400, size: 0.07, opacity: 0.95, forceDebugVisual: true });
+                } else {
+                  const particles = window.lightDispersionSystem.createDustParticles(doorPos, lightDir, { force: true, particleCount: 400, size: 0.07, opacity: 0.95 });
+                  if (particles) {
+                    container = new THREE.Group();
+                    container.add(particles);
+                    this.scene.add(container);
+                  }
+                }
+
+                if (container) {
+                  this.atmosphericEffects.set(`doorDust:${id}`, container);
+                  console.log(`✨ Partículas ou debug visual criados para porta ${id}`);
+                } else {
+                  console.warn(`⚠️ Falha ao criar partículas para porta ${id}`);
+                }
+              } catch (e) {
+                console.warn('⚠️ Erro ao invocar createDustParticles/forceCreateDoorDust:', e);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Falha ao criar partículas locais para porta:', e);
+      }
+    }
   }
 
   /**
